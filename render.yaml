@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: z-services-ai
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma db push --accept-data-loss && npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        value: https://z-services-ai.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: z-services-db
+          property: connectionString
+
+databases:
+  - name: z-services-db
+    plan: free
+    region: oregon
