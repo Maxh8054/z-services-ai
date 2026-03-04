@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 interface SpellCheckRequest {
   text: string;
-  language: string; // 'pt', 'en', 'ja', 'zh'
+  language?: string; // Optional - will auto-detect if not provided
 }
 
 interface SpellError {
@@ -36,55 +36,60 @@ const getApiConfig = () => {
   return null;
 };
 
-const languageNames: Record<string, string> = {
-  pt: 'Portuguese',
-  en: 'English',
-  ja: 'Japanese',
-  zh: 'Chinese'
-};
-
 export async function POST(request: NextRequest) {
   try {
     const body: SpellCheckRequest = await request.json();
-    const { text, language = 'pt' } = body;
+    const { text } = body;
 
     if (!text || text.trim().length === 0) {
-      return NextResponse.json({ errors: [] });
+      return NextResponse.json({ errors: [], detectedLanguage: null });
     }
 
     const config = getApiConfig();
     if (!config) {
-      return NextResponse.json({ errors: [], message: 'API not configured' });
+      return NextResponse.json({ errors: [], detectedLanguage: null, message: 'API not configured' });
     }
 
-    const langName = languageNames[language] || 'Portuguese';
+    const systemPrompt = `You are a professional multilingual proofreader. 
 
-    const systemPrompt = `You are a professional ${langName} language proofreader. Analyze the given text for:
+FIRST, detect the language of the text (Portuguese, English, Japanese, or Chinese).
+
+THEN, analyze the text ONLY for errors in that detected language:
 1. Spelling errors
 2. Grammar errors (including verb agreement, tense, etc.)
 3. Punctuation errors
 
-Respond ONLY with a valid JSON array of errors found. If no errors, return empty array [].
+Respond ONLY with a valid JSON object with this structure:
+{
+  "detectedLanguage": "pt" | "en" | "ja" | "zh",
+  "errors": [
+    {
+      "original": "incorrect word/phrase",
+      "suggestions": ["correction1", "correction2"],
+      "type": "spelling" | "grammar" | "punctuation",
+      "message": "explanation in the detected language",
+      "position": 0
+    }
+  ]
+}
 
-Each error object must have:
-- "original": the exact incorrect word/phrase from the text
-- "suggestions": array of suggested corrections (max 3)
-- "type": "spelling" | "grammar" | "punctuation"
-- "message": brief explanation in ${langName}
-- "position": character position where the error starts (0-based)
-
-Important: 
+Important rules:
+- Detect language FIRST before checking for errors
+- If text is Portuguese, check Portuguese spelling/grammar ONLY
+- If text is English, check English spelling/grammar ONLY
+- If text is Japanese, check Japanese grammar/kanji ONLY
+- If text is Chinese, check Chinese grammar/characters ONLY
 - Only flag actual errors, not style preferences
-- Be strict but fair
-- For Japanese/Chinese, check for wrong characters and grammar particles`;
+- Return the message in the SAME language as the detected text
+- position is the 0-based character index where error starts`;
 
-    const userPrompt = `Check this ${langName} text for errors:
+    const userPrompt = `Analyze this text, detect its language, and check for errors:
 
 """
 ${text}
 """
 
-Return JSON array of errors only. No markdown, no explanation outside JSON.`;
+Return JSON only. No markdown, no explanation outside JSON.`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -122,27 +127,31 @@ Return JSON array of errors only. No markdown, no explanation outside JSON.`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Spell Check API] Request failed:', response.status, errorText);
-      return NextResponse.json({ errors: [] });
+      return NextResponse.json({ errors: [], detectedLanguage: null });
     }
 
     const completion = await response.json();
-    const content = completion.choices?.[0]?.message?.content || '[]';
+    const content = completion.choices?.[0]?.message?.content || '{}';
 
     // Parse JSON from response
     let errors: SpellError[] = [];
+    let detectedLanguage: string | null = null;
+    
     try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        errors = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        errors = parsed.errors || [];
+        detectedLanguage = parsed.detectedLanguage || null;
       }
     } catch (parseError) {
       console.error('[Spell Check API] Parse error:', content);
     }
 
-    return NextResponse.json({ errors });
+    return NextResponse.json({ errors, detectedLanguage });
 
   } catch (error) {
     console.error('[Spell Check API] Error:', error);
-    return NextResponse.json({ errors: [] });
+    return NextResponse.json({ errors: [], detectedLanguage: null });
   }
 }
