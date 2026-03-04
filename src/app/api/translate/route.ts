@@ -15,7 +15,15 @@ let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
 
 async function getZAI() {
   if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
+    // Use environment variables or fallback to config file
+    const config = {
+      baseUrl: process.env.ZAI_BASE_URL || 'http://172.25.136.193:8080/v1',
+      apiKey: process.env.ZAI_API_KEY || 'Z.ai',
+      chatId: process.env.ZAI_CHAT_ID || 'chat-78d55cce-1731-449d-ac3b-b4bc93da0666',
+      token: process.env.ZAI_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNjM4ZDg5OWQtNjk2My00NTVmLWI2NzItZTJmOGNlYWI0ODExIiwiY2hhdF9pZCI6ImNoYXQtNzhkNTVjY2UtMTczMS00NDlkLWFjM2ItYjRiYzkzZGEwNjY2In0.Nn8pjsOo89uwGT1lTBMl9B1p7eK03S_nySSvM1xlD74',
+      userId: process.env.ZAI_USER_ID || '638d899d-6963-455f-b672-e2f8ceab4811'
+    };
+    zaiInstance = await ZAI.create(config);
   }
   return zaiInstance;
 }
