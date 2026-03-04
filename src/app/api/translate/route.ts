@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
 
 interface TranslateRequest {
   texts: string[];
@@ -7,26 +6,15 @@ interface TranslateRequest {
   targetLang: string;
   sourceLangName: string;
   targetLangName: string;
-  batch?: boolean;
 }
 
-// ZAI Configuration - use environment variables or defaults
-const getZAIConfig = () => ({
-  baseUrl: process.env.ZAI_BASE_URL || 'http://172.25.136.193:8080/v1',
-  apiKey: process.env.ZAI_API_KEY || 'Z.ai',
-  chatId: process.env.ZAI_CHAT_ID || 'chat-78d55cce-1731-449d-ac3b-b4bc93da0666',
-  userId: process.env.ZAI_USER_ID || '638d899d-6963-455f-b672-e2f8ceab4811'
+// API Configuration - use environment variables
+const getApiConfig = () => ({
+  baseUrl: process.env.LLM_API_URL || process.env.ZAI_BASE_URL || '',
+  apiKey: process.env.LLM_API_KEY || process.env.ZAI_API_KEY || '',
+  chatId: process.env.LLM_CHAT_ID || process.env.ZAI_CHAT_ID || '',
+  userId: process.env.LLM_USER_ID || process.env.ZAI_USER_ID || ''
 });
-
-// Create ZAI instance directly (bypasses file-based config)
-let zaiInstance: InstanceType<typeof ZAI> | null = null;
-
-function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = new ZAI(getZAIConfig());
-  }
-  return zaiInstance;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,9 +39,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No texts provided' }, { status: 400 });
     }
 
-    // Initialize ZAI
-    const zai = getZAI();
-    console.log('[Translate API] ZAI initialized');
+    // Get API config
+    const config = getApiConfig();
+    
+    if (!config.baseUrl || !config.apiKey) {
+      console.error('[Translate API] Missing API configuration');
+      return NextResponse.json({ 
+        error: 'API not configured', 
+        details: 'Please set LLM_API_URL and LLM_API_KEY environment variables' 
+      }, { status: 500 });
+    }
 
     // Filter out empty texts and keep track of indices
     const nonEmptyTexts: { index: number; text: string }[] = [];
@@ -90,21 +85,44 @@ Return format: ["translation for text 0", "translation for text 1", ...]`;
 
     console.log('[Translate API] Sending request to LLM...');
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: 'assistant',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: userPrompt
-        }
-      ],
-      thinking: { type: 'disabled' }
+    // Build headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.apiKey}`,
+      'X-Z-AI-From': 'Z'
+    };
+
+    if (config.chatId) {
+      headers['X-Chat-Id'] = config.chatId;
+    }
+    if (config.userId) {
+      headers['X-User-Id'] = config.userId;
+    }
+
+    // Make request directly
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        messages: [
+          { role: 'assistant', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        thinking: { type: 'disabled' }
+      })
     });
 
-    const content = completion.choices[0]?.message?.content || '';
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Translate API] LLM request failed:', response.status, errorText);
+      return NextResponse.json({ 
+        error: 'Translation API failed', 
+        details: `Status ${response.status}: ${errorText}` 
+      }, { status: 500 });
+    }
+
+    const completion = await response.json();
+    const content = completion.choices?.[0]?.message?.content || '';
     console.log('[Translate API] LLM response:', content.substring(0, 200) + '...');
 
     // Parse JSON array from response
@@ -116,13 +134,11 @@ Return format: ["translation for text 0", "translation for text 1", ...]`;
       if (jsonMatch) {
         translations = JSON.parse(jsonMatch[0]);
       } else {
-        // Fallback: try to parse the whole response
         translations = JSON.parse(content);
       }
       console.log('[Translate API] Parsed translations:', translations.length);
     } catch (parseError) {
       console.error('[Translate API] Failed to parse translation response:', content);
-      // Return original texts if parsing fails
       return NextResponse.json({ translations: texts });
     }
 
