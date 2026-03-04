@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 interface SpellCheckRequest {
   text: string;
-  language?: string; // Optional - will auto-detect if not provided
+  preferredLanguage?: string; // The UI language - used as hint for detection
 }
 
 interface SpellError {
@@ -36,10 +36,17 @@ const getApiConfig = () => {
   return null;
 };
 
+const languageNames: Record<string, string> = {
+  pt: 'Portuguese',
+  en: 'English', 
+  ja: 'Japanese',
+  zh: 'Chinese'
+};
+
 export async function POST(request: NextRequest) {
   try {
     const body: SpellCheckRequest = await request.json();
-    const { text } = body;
+    const { text, preferredLanguage } = body;
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json({ errors: [], detectedLanguage: null });
@@ -50,16 +57,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ errors: [], detectedLanguage: null, message: 'API not configured' });
     }
 
+    const preferredLangName = preferredLanguage ? languageNames[preferredLanguage] : null;
+
     const systemPrompt = `You are a professional multilingual proofreader. 
 
-FIRST, detect the language of the text (Portuguese, English, Japanese, or Chinese).
+${preferredLangName ? `IMPORTANT: The user's interface is in ${preferredLangName}. They are likely trying to write in ${preferredLangName}. Prioritize ${preferredLangName} corrections, even if a word looks like it could be from another language.` : 'Detect the language of the text first.'}
 
-THEN, analyze the text ONLY for errors in that detected language:
+Analyze the text for errors:
 1. Spelling errors
 2. Grammar errors (including verb agreement, tense, etc.)
 3. Punctuation errors
 
-Respond ONLY with a valid JSON object with this structure:
+SPECIAL RULES:
+- "Cilindru" → should correct to "cilindro" (Portuguese)
+- "Cilinder" when UI is Portuguese → suggest "cilindro" (the user is trying to write in Portuguese)
+- "Cilinder" when UI is English → correct to "cylinder" (English spelling)
+- Always consider what the user INTENDED to write based on their UI language
+- Be comprehensive - catch all spelling variations and typos
+
+Respond ONLY with a valid JSON object:
 {
   "detectedLanguage": "pt" | "en" | "ja" | "zh",
   "errors": [
@@ -67,24 +83,23 @@ Respond ONLY with a valid JSON object with this structure:
       "original": "incorrect word/phrase",
       "suggestions": ["correction1", "correction2"],
       "type": "spelling" | "grammar" | "punctuation",
-      "message": "explanation in the detected language",
+      "message": "explanation in the detected/preferred language",
       "position": 0
     }
   ]
 }
 
 Important rules:
-- Detect language FIRST before checking for errors
-- If text is Portuguese, check Portuguese spelling/grammar ONLY
-- If text is English, check English spelling/grammar ONLY
-- If text is Japanese, check Japanese grammar/kanji ONLY
-- If text is Chinese, check Chinese grammar/characters ONLY
-- Only flag actual errors, not style preferences
-- Return the message in the SAME language as the detected text
+- If the user's UI is in a specific language, they probably want to write in that language
+- Check for phonetic misspellings (how the word sounds)
+- Check for similar-looking words
+- Return the message in the SAME language as the user's preferred/detected language
 - position is the 0-based character index where error starts`;
 
-    const userPrompt = `Analyze this text, detect its language, and check for errors:
+    const userPrompt = `Analyze this text and check for errors:
+${preferredLangName ? `\nUser's UI language: ${preferredLangName} (prioritize corrections in this language)` : ''}
 
+Text:
 """
 ${text}
 """

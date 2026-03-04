@@ -27,7 +27,7 @@ interface TextareaWithSpellCheckProps {
   className?: string;
   disabled?: boolean;
   rows?: number;
-  language?: string; // Kept for compatibility but not used (auto-detect)
+  language?: string; // The UI language - used as preference for corrections
 }
 
 const languageFlags: Record<string, string> = {
@@ -51,6 +51,7 @@ export function TextareaWithSpellCheck({
   className,
   disabled,
   rows = 4,
+  language, // UI language - passed to API as preferredLanguage
 }: TextareaWithSpellCheckProps) {
   const [errors, setErrors] = useState<SpellError[]>([]);
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
@@ -77,7 +78,10 @@ export function TextareaWithSpellCheck({
       const response = await fetch('/api/spell-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }), // No language - auto-detect
+        body: JSON.stringify({ 
+          text,
+          preferredLanguage: language // Pass UI language as preference
+        }),
       });
       
       const data = await response.json();
@@ -89,7 +93,7 @@ export function TextareaWithSpellCheck({
     } finally {
       setIsChecking(false);
     }
-  }, []);
+  }, [language]);
 
   // Debounce the spell check - only check after user stops typing
   useEffect(() => {
