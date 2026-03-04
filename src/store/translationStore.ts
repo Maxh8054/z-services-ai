@@ -9,6 +9,27 @@ interface TranslationCache {
   };
 }
 
+// Store original texts in Portuguese
+interface OriginalTexts {
+  inspection: {
+    descricao: string;
+  };
+  photos: Array<{
+    id: string;
+    description: string;
+    partName: string;
+  }>;
+  conclusion: string;
+  // For Home tab
+  categories: Array<{
+    id: string;
+    photos: Array<{
+      id: string;
+      description: string;
+    }>;
+  }>;
+}
+
 interface TranslationState {
   // Current language
   language: Language;
@@ -18,6 +39,9 @@ interface TranslationState {
   
   // Loading states
   isTranslating: boolean;
+  
+  // Original texts (stored in Portuguese)
+  originalTexts: OriginalTexts | null;
   
   // Actions
   setLanguage: (lang: Language) => void;
@@ -38,6 +62,9 @@ interface TranslationState {
   getLanguageName: (lang?: Language) => string;
   getLanguageFlag: (lang?: Language) => string;
   
+  // Store original texts
+  setOriginalTexts: (texts: OriginalTexts) => void;
+  
   // Pre-translate all dynamic content in the report
   preTranslateReport: (data: {
     inspection: Record<string, unknown>;
@@ -47,6 +74,19 @@ interface TranslationState {
     inspection: Record<string, unknown>;
     photos: Array<Record<string, unknown>>;
     conclusion: string;
+  }>;
+  
+  // Translate all report content (returns translated data)
+  translateAllContent: (data: {
+    inspectionDescricao?: string;
+    photos: Array<{ id: string; description: string; partName?: string }>;
+    conclusion: string;
+    categories?: Array<{ id: string; photos: Array<{ id: string; description: string }> }>;
+  }) => Promise<{
+    inspectionDescricao: string;
+    photos: Array<{ id: string; description: string; partName?: string }>;
+    conclusion: string;
+    categories?: Array<{ id: string; photos: Array<{ id: string; description: string }> }>;
   }>;
 }
 
@@ -68,6 +108,7 @@ export const useTranslationStore = create<TranslationState>()(
       language: 'pt',
       cache: {},
       isTranslating: false,
+      originalTexts: null,
       
       setLanguage: (lang) => set({ language: lang }),
       
@@ -243,6 +284,113 @@ export const useTranslationStore = create<TranslationState>()(
         } catch (error) {
           set({ isTranslating: false });
           return data;
+        }
+      },
+      
+      setOriginalTexts: (texts) => set({ originalTexts: texts }),
+      
+      translateAllContent: async (data) => {
+        const state = get();
+        const currentLang = state.language;
+        
+        // If Portuguese, return originals
+        if (currentLang === 'pt') {
+          return {
+            inspectionDescricao: data.inspectionDescricao || '',
+            photos: data.photos,
+            conclusion: data.conclusion,
+            categories: data.categories,
+          };
+        }
+        
+        set({ isTranslating: true });
+        
+        try {
+          // Collect all texts to translate
+          const textsToTranslate: string[] = [];
+          const textMapping: { type: string; indices: number[] }[] = [];
+          
+          // Inspection descricao
+          if (data.inspectionDescricao && data.inspectionDescricao.trim()) {
+            textsToTranslate.push(data.inspectionDescricao);
+            textMapping.push({ type: 'inspectionDescricao', indices: [textsToTranslate.length - 1] });
+          }
+          
+          // Photos descriptions and partNames
+          const photoIndices: { photoIdx: number; field: string; textIdx: number }[] = [];
+          data.photos.forEach((photo, photoIdx) => {
+            if (photo.description && photo.description.trim()) {
+              textsToTranslate.push(photo.description);
+              photoIndices.push({ photoIdx, field: 'description', textIdx: textsToTranslate.length - 1 });
+            }
+            if (photo.partName && photo.partName.trim()) {
+              textsToTranslate.push(photo.partName);
+              photoIndices.push({ photoIdx, field: 'partName', textIdx: textsToTranslate.length - 1 });
+            }
+          });
+          
+          // Conclusion
+          if (data.conclusion && data.conclusion.trim()) {
+            textsToTranslate.push(data.conclusion);
+          }
+          const conclusionIdx = textsToTranslate.length - 1;
+          
+          // Categories photos (for Home tab)
+          const categoryPhotoIndices: { catIdx: number; photoIdx: number; textIdx: number }[] = [];
+          if (data.categories) {
+            data.categories.forEach((cat, catIdx) => {
+              cat.photos.forEach((photo, photoIdx) => {
+                if (photo.description && photo.description.trim()) {
+                  textsToTranslate.push(photo.description);
+                  categoryPhotoIndices.push({ catIdx, photoIdx, textIdx: textsToTranslate.length - 1 });
+                }
+              });
+            });
+          }
+          
+          // Translate all texts
+          const translations = await translateBatch(textsToTranslate, currentLang, 'pt');
+          
+          // Build result
+          const result = {
+            inspectionDescricao: data.inspectionDescricao && data.inspectionDescricao.trim() 
+              ? translations[0] 
+              : '',
+            photos: data.photos.map((photo, photoIdx) => ({
+              ...photo,
+              description: photoIndices.find(p => p.photoIdx === photoIdx && p.field === 'description')
+                ? translations[photoIndices.find(p => p.photoIdx === photoIdx && p.field === 'description')!.textIdx]
+                : photo.description,
+              partName: photoIndices.find(p => p.photoIdx === photoIdx && p.field === 'partName')
+                ? translations[photoIndices.find(p => p.photoIdx === photoIdx && p.field === 'partName')!.textIdx]
+                : photo.partName,
+            })),
+            conclusion: data.conclusion && data.conclusion.trim()
+              ? translations[conclusionIdx]
+              : '',
+            categories: data.categories ? data.categories.map((cat, catIdx) => ({
+              ...cat,
+              photos: cat.photos.map((photo, photoIdx) => ({
+                ...photo,
+                description: categoryPhotoIndices.find(c => c.catIdx === catIdx && c.photoIdx === photoIdx)
+                  ? translations[categoryPhotoIndices.find(c => c.catIdx === catIdx && c.photoIdx === photoIdx)!.textIdx]
+                  : photo.description,
+              })),
+            })) : undefined,
+          };
+          
+          set({ isTranslating: false });
+          return result;
+          
+        } catch (error) {
+          console.error('Translation error:', error);
+          set({ isTranslating: false });
+          return {
+            inspectionDescricao: data.inspectionDescricao || '',
+            photos: data.photos,
+            conclusion: data.conclusion,
+            categories: data.categories,
+          };
         }
       },
     }),

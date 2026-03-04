@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { TranslateButton } from '@/components/TranslateButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1485,6 +1486,10 @@ function HomeContent() {
         <Button size="icon" className="rounded-full bg-purple-600 hover:bg-purple-700" onClick={() => setShowExportDialog(true)} title={t('action.download')}><Download className="h-5 w-5" /></Button>
         
         <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600" onClick={() => setShowEmailDialog(true)} title="Enviar Email"><Mail className="h-5 w-5" /></Button>
+        
+        {/* Botão de Traduzir */}
+        <TranslateButton tab="home" />
+        
         <CollaborationPanel
           reportType="home"
           reportData={{ inspection, categories, conclusion }}
@@ -2353,6 +2358,10 @@ function InspecaoContent() {
         <Button size="icon" className="rounded-full bg-purple-600 hover:bg-purple-700" onClick={() => setShowExportDialog(true)} title={t('action.download')}><Download className="h-5 w-5" /></Button>
         
         <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600" onClick={() => setShowEmailDialog(true)} title="Enviar Email"><Mail className="h-5 w-5" /></Button>
+        
+        {/* Botão de Traduzir */}
+        <TranslateButton tab="inspecao" />
+        
         <CollaborationPanel
           reportType="inspecao"
           reportData={{ inspection, photos, additionalParts, conclusion }}
