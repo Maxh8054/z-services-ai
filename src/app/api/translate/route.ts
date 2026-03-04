@@ -23,7 +23,15 @@ async function getZAI() {
 export async function POST(request: NextRequest) {
   try {
     const body: TranslateRequest = await request.json();
-    const { texts, sourceLang, targetLang, sourceLangName, targetLangName, batch } = body;
+    const { texts, sourceLang, targetLang, sourceLangName, targetLangName } = body;
+
+    console.log('[Translate API] Request received:', {
+      textsCount: texts?.length,
+      sourceLang,
+      targetLang,
+      sourceLangName,
+      targetLangName
+    });
 
     // If same language, return originals
     if (sourceLang === targetLang) {
@@ -37,6 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Initialize ZAI
     const zai = await getZAI();
+    console.log('[Translate API] ZAI initialized');
 
     // Filter out empty texts and keep track of indices
     const nonEmptyTexts: { index: number; text: string }[] = [];
@@ -46,12 +55,18 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    console.log('[Translate API] Non-empty texts to translate:', nonEmptyTexts.length);
+
     if (nonEmptyTexts.length === 0) {
       return NextResponse.json({ translations: texts });
     }
 
     // Build prompt for batch translation
-    const prompt = `You are a professional translator. Translate the following ${nonEmptyTexts.length} texts from ${sourceLangName} to ${targetLangName}.
+    const textsList = nonEmptyTexts.map((item, i) => `[${i}] "${item.text}"`).join('\n');
+    
+    const systemPrompt = `You are a professional technical translator. You MUST respond with ONLY a valid JSON array containing the translations in the exact same order as the input. No markdown, no explanation, just the JSON array.`;
+
+    const userPrompt = `Translate the following ${nonEmptyTexts.length} texts from ${sourceLangName} to ${targetLangName}.
 
 IMPORTANT RULES:
 1. Maintain technical terminology and context
@@ -60,26 +75,29 @@ IMPORTANT RULES:
 4. Each element in the array must correspond to the text at the same position
 5. Do NOT add any explanation or additional text
 
-Texts to translate (numbered for reference):
-${nonEmptyTexts.map((item, i) => `[${i}] "${item.text}"`).join('\n')}
+Texts to translate:
+${textsList}
 
 Return format: ["translation for text 0", "translation for text 1", ...]`;
 
-    const response = await zai.chat.completions.create({
+    console.log('[Translate API] Sending request to LLM...');
+
+    const completion = await zai.chat.completions.create({
       messages: [
         {
-          role: 'system',
-          content: `You are a professional technical translator. You MUST respond with ONLY a valid JSON array containing the translations in the exact same order as the input. No markdown, no explanation, just the JSON array.`
+          role: 'assistant',
+          content: systemPrompt
         },
         {
           role: 'user',
-          content: prompt
+          content: userPrompt
         }
       ],
-      temperature: 0.3,
+      thinking: { type: 'disabled' }
     });
 
-    const content = response.choices[0]?.message?.content || '';
+    const content = completion.choices[0]?.message?.content || '';
+    console.log('[Translate API] LLM response:', content.substring(0, 200) + '...');
 
     // Parse JSON array from response
     let translations: string[] = [];
@@ -93,8 +111,9 @@ Return format: ["translation for text 0", "translation for text 1", ...]`;
         // Fallback: try to parse the whole response
         translations = JSON.parse(content);
       }
+      console.log('[Translate API] Parsed translations:', translations.length);
     } catch (parseError) {
-      console.error('Failed to parse translation response:', content);
+      console.error('[Translate API] Failed to parse translation response:', content);
       // Return original texts if parsing fails
       return NextResponse.json({ translations: texts });
     }
@@ -107,12 +126,13 @@ Return format: ["translation for text 0", "translation for text 1", ...]`;
       }
     });
 
+    console.log('[Translate API] Final translations ready');
     return NextResponse.json({ translations: finalTranslations });
 
   } catch (error) {
-    console.error('Translation API error:', error);
+    console.error('[Translate API] Error:', error);
     return NextResponse.json(
-      { error: 'Translation failed' },
+      { error: 'Translation failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

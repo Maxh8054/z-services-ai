@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { TranslateButton } from '@/components/TranslateButton';
+import { TranslateDialog } from '@/components/TranslateDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,6 +69,7 @@ function MobileActionMenu({
   onEmailDialog,
   onClearConfirm,
   onShare,
+  onTranslate,
   reportData,
   reportType,
   t,
@@ -78,6 +80,7 @@ function MobileActionMenu({
   onEmailDialog: () => void;
   onClearConfirm: () => void;
   onShare: () => void;
+  onTranslate: () => void;
   reportData: unknown;
   reportType: 'home' | 'inspecao';
   t: (key: string, params?: Record<string, string | number>) => string;
@@ -167,6 +170,14 @@ function MobileActionMenu({
             </Button>
             <Button 
               size="icon" 
+              className="rounded-full bg-teal-600 hover:bg-teal-700 h-12 w-12" 
+              onClick={() => handleAction(onTranslate)}
+              title="Traduzir"
+            >
+              <Globe className="h-5 w-5" />
+            </Button>
+            <Button 
+              size="icon" 
               className="rounded-full bg-indigo-500 hover:bg-indigo-600 h-12 w-12" 
               onClick={() => handleAction(onShare)}
               title="Compartilhar"
@@ -175,7 +186,7 @@ function MobileActionMenu({
             </Button>
             <Button 
               size="icon" 
-              className="rounded-full bg-red-600 hover:bg-red-700 h-12 w-12" 
+              className="rounded-full bg-red-600 hover:bg-red-700 h-12 w-12 col-span-3" 
               onClick={() => handleAction(onClearConfirm)}
               title={t('action.clear')}
             >
@@ -1162,6 +1173,7 @@ function HomeContent() {
   const [cameraTarget, setCameraTarget] = useState<{ categoryId: string; photoId: string } | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showDataDialog, setShowDataDialog] = useState(false);
+  const [showTranslateDialog, setShowTranslateDialog] = useState(false);
   const shareDialog = useShareDialog();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1508,6 +1520,7 @@ function HomeContent() {
         onEmailDialog={() => setShowEmailDialog(true)}
         onClearConfirm={() => setShowClearConfirm(true)}
         onShare={shareDialog.openDialog}
+        onTranslate={() => setShowTranslateDialog(true)}
         reportData={{ inspection, categories, conclusion }}
         reportType="home"
         t={t}
@@ -2000,6 +2013,13 @@ function HomeContent() {
         </DialogContent>
       </Dialog>
 
+      {/* Translate Dialog */}
+      <TranslateDialog
+        open={showTranslateDialog}
+        onOpenChange={setShowTranslateDialog}
+        tab="home"
+      />
+
       {/* Photo Editor */}
       {editingPhoto && (
         <PhotoEditor photo={editingPhoto.photo} onSave={(data) => { updatePhotoInCategory(editingPhoto.categoryId, editingPhoto.photo.id, data); setEditingPhoto(null); }} onClose={() => setEditingPhoto(null)} t={t} />
@@ -2050,6 +2070,7 @@ function InspecaoContent() {
   const [cameraTargetId, setCameraTargetId] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showDataDialog, setShowDataDialog] = useState(false);
+  const [showTranslateDialog, setShowTranslateDialog] = useState(false);
   const shareDialog = useShareDialog();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2380,6 +2401,7 @@ function InspecaoContent() {
         onEmailDialog={() => setShowEmailDialog(true)}
         onClearConfirm={() => setShowClearConfirm(true)}
         onShare={shareDialog.openDialog}
+        onTranslate={() => setShowTranslateDialog(true)}
         reportData={{ inspection, photos, additionalParts, conclusion }}
         reportType="inspecao"
         t={t}
@@ -2828,6 +2850,13 @@ function InspecaoContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Translate Dialog */}
+      <TranslateDialog
+        open={showTranslateDialog}
+        onOpenChange={setShowTranslateDialog}
+        tab="inspecao"
+      />
 
       {editingPhoto && <PhotoEditor photo={editingPhoto} onSave={(data) => { updatePhoto(editingPhoto.id, data); setEditingPhoto(null); }} onClose={() => setEditingPhoto(null)} t={t} />}
 

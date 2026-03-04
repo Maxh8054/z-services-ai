@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Languages, ArrowRight, CheckCircle } from 'lucide-react';
+import { Loader2, Languages, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
 import { useTranslationStore } from '@/store/translationStore';
 import { useReportStore } from '@/store/reportStore';
 import { useHomeReportStore } from '@/store/homeReportStore';
@@ -20,6 +21,7 @@ interface TextareaContent {
   content: string;
   field: string;
   categoryId?: string;
+  photoId?: string;
 }
 
 interface TranslateDialogProps {
@@ -34,94 +36,110 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState({ current: 0, total: 0 });
   const [translationComplete, setTranslationComplete] = useState(false);
-  const [textareaContents, setTextareaContents] = useState<TextareaContent[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const { setLanguage } = useTranslationStore();
   const inspecaoStore = useReportStore();
   const homeStore = useHomeReportStore();
 
-  // Detect all textareas content when dialog opens
+  // Get fresh text content from stores
+  const getTextareaContents = useCallback((): TextareaContent[] => {
+    const contents: TextareaContent[] = [];
+
+    if (tab === 'inspecao') {
+      const { photos, conclusion, inspection } = inspecaoStore;
+
+      if (inspection.descricao?.trim()) {
+        contents.push({
+          id: `insp-desc`,
+          content: inspection.descricao,
+          field: 'inspectionDescricao',
+        });
+      }
+
+      photos.forEach((photo) => {
+        if (photo.description?.trim()) {
+          contents.push({
+            id: `photo-${photo.id}-desc`,
+            content: photo.description,
+            field: 'photoDescription',
+            categoryId: photo.id,
+            photoId: photo.id,
+          });
+        }
+        if (photo.partName?.trim()) {
+          contents.push({
+            id: `photo-${photo.id}-part`,
+            content: photo.partName,
+            field: 'photoPartName',
+            categoryId: photo.id,
+            photoId: photo.id,
+          });
+        }
+      });
+
+      if (conclusion?.trim()) {
+        contents.push({
+          id: `conclusion`,
+          content: conclusion,
+          field: 'conclusion',
+        });
+      }
+    } else {
+      const { categories, conclusion, inspection } = homeStore;
+
+      if (inspection.descricao?.trim()) {
+        contents.push({
+          id: `insp-desc`,
+          content: inspection.descricao,
+          field: 'inspectionDescricao',
+        });
+      }
+
+      categories.forEach((cat) => {
+        cat.photos.forEach((photo) => {
+          if (photo.description?.trim()) {
+            contents.push({
+              id: `cat-${cat.id}-photo-${photo.id}`,
+              content: photo.description,
+              field: 'categoryPhotoDescription',
+              categoryId: cat.id,
+              photoId: photo.id,
+            });
+          }
+        });
+      });
+
+      if (conclusion?.trim()) {
+        contents.push({
+          id: `conclusion`,
+          content: conclusion,
+          field: 'conclusion',
+        });
+      }
+    }
+
+    return contents;
+  }, [tab, inspecaoStore, homeStore]);
+
+  // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setTranslationComplete(false);
-      const contents: TextareaContent[] = [];
-
-      if (tab === 'inspecao') {
-        const { photos, conclusion, inspection } = inspecaoStore;
-
-        if (inspection.descricao?.trim()) {
-          contents.push({
-            id: `insp-desc`,
-            content: inspection.descricao,
-            field: 'inspectionDescricao',
-          });
-        }
-
-        photos.forEach((photo) => {
-          if (photo.description?.trim()) {
-            contents.push({
-              id: `photo-${photo.id}-desc`,
-              content: photo.description,
-              field: 'photoDescription',
-              categoryId: photo.id,
-            });
-          }
-          if (photo.partName?.trim()) {
-            contents.push({
-              id: `photo-${photo.id}-part`,
-              content: photo.partName,
-              field: 'photoPartName',
-              categoryId: photo.id,
-            });
-          }
-        });
-
-        if (conclusion?.trim()) {
-          contents.push({
-            id: `conclusion`,
-            content: conclusion,
-            field: 'conclusion',
-          });
-        }
-      } else {
-        const { categories, conclusion, inspection } = homeStore;
-
-        if (inspection.descricao?.trim()) {
-          contents.push({
-            id: `insp-desc`,
-            content: inspection.descricao,
-            field: 'inspectionDescricao',
-          });
-        }
-
-        categories.forEach((cat) => {
-          cat.photos.forEach((photo) => {
-            if (photo.description?.trim()) {
-              contents.push({
-                id: `cat-${cat.id}-photo-${photo.id}`,
-                content: photo.description,
-                field: 'categoryPhotoDescription',
-                categoryId: cat.id,
-              });
-            }
-          });
-        });
-
-        if (conclusion?.trim()) {
-          contents.push({
-            id: `conclusion`,
-            content: conclusion,
-            field: 'conclusion',
-          });
-        }
-      }
-
-      setTextareaContents(contents);
+      setError(null);
+      setTranslationProgress({ current: 0, total: 0 });
     }
-  }, [open, tab]);
+  }, [open]);
+
+  // Get current text count for display
+  const currentTextCount = getTextareaContents().length;
 
   const handleTranslate = async () => {
     if (sourceLang === targetLang) return;
+
+    // Get fresh content at translation time
+    const textareaContents = getTextareaContents();
+
     if (textareaContents.length === 0) {
       // Even with no dynamic texts, change the static language
       setLanguage(targetLang);
@@ -130,10 +148,13 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
     }
 
     setIsTranslating(true);
+    setError(null);
     setTranslationProgress({ current: 0, total: textareaContents.length });
 
     try {
       const textsToTranslate = textareaContents.map(item => item.content);
+
+      console.log('[TranslateDialog] Translating texts:', textsToTranslate);
 
       setTranslationProgress({ current: 1, total: textareaContents.length });
 
@@ -146,12 +167,18 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
           targetLang,
           sourceLangName: LANGUAGE_NAMES[sourceLang],
           targetLangName: LANGUAGE_NAMES[targetLang],
-          batch: true,
         }),
       });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Translation failed');
+      }
+
       const translations: string[] = data.translations || textsToTranslate;
+
+      console.log('[TranslateDialog] Got translations:', translations);
 
       setTranslationProgress({ current: textareaContents.length, total: textareaContents.length });
 
@@ -162,10 +189,10 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
 
           if (item.field === 'inspectionDescricao') {
             inspecaoStore.updateInspection({ descricao: translatedText });
-          } else if (item.field === 'photoDescription' && item.categoryId) {
-            inspecaoStore.updatePhoto(item.categoryId, { description: translatedText });
-          } else if (item.field === 'photoPartName' && item.categoryId) {
-            inspecaoStore.updatePhoto(item.categoryId, { partName: translatedText });
+          } else if (item.field === 'photoDescription' && item.photoId) {
+            inspecaoStore.updatePhoto(item.photoId, { description: translatedText });
+          } else if (item.field === 'photoPartName' && item.photoId) {
+            inspecaoStore.updatePhoto(item.photoId, { partName: translatedText });
           } else if (item.field === 'conclusion') {
             inspecaoStore.setConclusion(translatedText);
           }
@@ -176,11 +203,8 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
 
           if (item.field === 'inspectionDescricao') {
             homeStore.updateInspection({ descricao: translatedText });
-          } else if (item.field === 'categoryPhotoDescription' && item.categoryId) {
-            const photoId = item.id.split('-').pop();
-            if (photoId) {
-              homeStore.updatePhotoInCategory(item.categoryId, photoId, { description: translatedText });
-            }
+          } else if (item.field === 'categoryPhotoDescription' && item.categoryId && item.photoId) {
+            homeStore.updatePhotoInCategory(item.categoryId, item.photoId, { description: translatedText });
           } else if (item.field === 'conclusion') {
             homeStore.setConclusion(translatedText);
           }
@@ -196,8 +220,9 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
         onOpenChange(false);
       }, 1500);
 
-    } catch (error) {
-      console.error('Translation error:', error);
+    } catch (err) {
+      console.error('[TranslateDialog] Translation error:', err);
+      setError(err instanceof Error ? err.message : 'Translation failed');
     } finally {
       setIsTranslating(false);
     }
@@ -213,14 +238,29 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
             <Languages className="h-5 w-5 text-orange-500" />
             Traduzir Textos
           </DialogTitle>
+          <DialogDescription>
+            Traduza todos os textos dinâmicos para outro idioma
+          </DialogDescription>
         </DialogHeader>
 
-        {translationComplete ? (
+        {error ? (
+          <div className="py-8 text-center">
+            <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2 text-red-600">Erro na Tradução</h3>
+            <p className="text-gray-500 mb-4">{error}</p>
+            <Button
+              variant="outline"
+              onClick={() => setError(null)}
+            >
+              Tentar Novamente
+            </Button>
+          </div>
+        ) : translationComplete ? (
           <div className="py-8 text-center">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Tradução Concluída!</h3>
             <p className="text-gray-500">
-              {textareaContents.length} texto(s) traduzido(s) para {LANGUAGE_NAMES[targetLang]}
+              {currentTextCount} texto(s) traduzido(s) para {LANGUAGE_NAMES[targetLang]}
             </p>
           </div>
         ) : isTranslating ? (
@@ -241,7 +281,7 @@ export function TranslateDialog({ open, onOpenChange, tab }: TranslateDialogProp
           <>
             {/* Text count */}
             <div className="my-4 text-center">
-              <span className="text-3xl font-bold text-orange-500">{textareaContents.length}</span>
+              <span className="text-3xl font-bold text-orange-500">{currentTextCount}</span>
               <p className="text-gray-500">campo(s) com texto encontrado(s)</p>
             </div>
 
