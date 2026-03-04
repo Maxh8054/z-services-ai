@@ -63,8 +63,11 @@ export async function generatePowerPoint(options: PowerPointOptions): Promise<vo
   
   generateFinalSlide(pptx, language);
   
-  // Save the file
-  const fileName = `Relatorio_${finalInspection.tag || 'Inspecao'}_${formatDateForFileName(finalInspection.data)}.pptx`;
+  // Save the file - usar descrição como nome
+  const descricaoNome = finalInspection.descricao 
+    ? finalInspection.descricao.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_') 
+    : 'Relatorio';
+  const fileName = `${descricaoNome}_${formatDateForFileName(finalInspection.data)}.pptx`;
   const blob = await pptx.write({ outputType: 'blob' }) as Blob;
   saveAs(blob, fileName);
 }
@@ -118,8 +121,11 @@ export async function generateHomePowerPoint(options: HomePowerPointOptions): Pr
   
   generateFinalSlide(pptx, language);
   
-  // Save the file
-  const fileName = `Relatorio_Home_${finalInspection.tag || 'Inspecao'}_${formatDateForFileName(finalInspection.data)}.pptx`;
+  // Save the file - usar descrição como nome
+  const descricaoNome = finalInspection.descricao 
+    ? finalInspection.descricao.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_') 
+    : 'Relatorio';
+  const fileName = `${descricaoNome}_${formatDateForFileName(finalInspection.data)}.pptx`;
   const blob = await pptx.write({ outputType: 'blob' }) as Blob;
   saveAs(blob, fileName);
 }
@@ -175,8 +181,8 @@ function generateCoverSlide(pptx: pptxgen, inspection: InspectionData, language:
   const isTranslated = language !== 'pt';
   const slide = pptx.addSlide();
   
-  // Header
-  addStandardHeader(slide, isTranslated ? 'INSPECTION' : 'INSPEÇÃO');
+  // Header - usar TAG ao invés de INSPEÇÃO
+  addStandardHeader(slide, inspection.tag || (isTranslated ? 'EQUIPMENT' : 'EQUIPAMENTO'));
   
   // Title
   slide.addText(isTranslated ? 'Technical Report' : 'Relatório Técnico', {
