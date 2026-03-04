@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { TextareaWithSpellCheck } from '@/components/TextareaWithSpellCheck';
 import { TranslateButton } from '@/components/TranslateButton';
 import { TranslateDialog } from '@/components/TranslateDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -1811,11 +1812,12 @@ function HomeContent() {
                               )}
                             </div>
                             <div className="p-2">
-                              <Textarea
+                              <TextareaWithSpellCheck
                                 className="h-14 text-sm"
                                 placeholder={t('photo.descriptionPlaceholder')}
                                 value={photo.description}
-                                onChange={(e) => updatePhotoInCategory(category.id, photo.id, { description: e.target.value })}
+                                onChange={(value) => updatePhotoInCategory(category.id, photo.id, { description: value })}
+                                language={language}
                               />
                             </div>
                           </Card>
@@ -1893,11 +1895,12 @@ function HomeContent() {
           <Card className="mt-8">
             <CardHeader><CardTitle className="flex items-center gap-2"><Check className="h-5 w-5 text-orange-500" />{t('conclusion.title')}</CardTitle></CardHeader>
             <CardContent>
-              <Textarea
+              <TextareaWithSpellCheck
                 className="min-h-32"
                 placeholder={t('conclusion.placeholder')}
                 value={conclusion}
-                onChange={(e) => setConclusion(e.target.value)}
+                onChange={setConclusion}
+                language={language}
               />
             </CardContent>
           </Card>
@@ -2661,11 +2664,12 @@ function InspecaoContent() {
                   )}
                 </div>
                 <div className="p-2">
-                  <Textarea
+                  <TextareaWithSpellCheck
                     className="h-16 text-sm"
                     placeholder={t('photo.descriptionPlaceholder')}
                     value={photo.description}
-                    onChange={(e) => updatePhoto(photo.id, { description: e.target.value })}
+                    onChange={(value) => updatePhoto(photo.id, { description: value })}
+                    language={language}
                   />
                 </div>
               </Card>
@@ -2732,11 +2736,12 @@ function InspecaoContent() {
           <Card className="mt-8">
             <CardHeader><CardTitle className="flex items-center gap-2"><Check className="h-5 w-5 text-orange-500" />{t('conclusion.title')}</CardTitle></CardHeader>
             <CardContent>
-              <Textarea
+              <TextareaWithSpellCheck
                 className="min-h-32"
                 placeholder={t('conclusion.placeholder')}
                 value={conclusion}
-                onChange={(e) => setConclusion(e.target.value)}
+                onChange={setConclusion}
+                language={language}
               />
             </CardContent>
           </Card>
