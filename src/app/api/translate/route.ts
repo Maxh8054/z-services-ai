@@ -8,13 +8,35 @@ interface TranslateRequest {
   targetLangName: string;
 }
 
-// API Configuration - use environment variables
-const getApiConfig = () => ({
-  baseUrl: process.env.LLM_API_URL || process.env.ZAI_BASE_URL || '',
-  apiKey: process.env.LLM_API_KEY || process.env.ZAI_API_KEY || '',
-  chatId: process.env.LLM_CHAT_ID || process.env.ZAI_CHAT_ID || '',
-  userId: process.env.LLM_USER_ID || process.env.ZAI_USER_ID || ''
-});
+// API Configuration - defaults to OpenAI, fallback to Z-AI for local dev
+const getApiConfig = () => {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const llmKey = process.env.LLM_API_KEY;
+  
+  if (openaiKey) {
+    // Use OpenAI
+    return {
+      baseUrl: process.env.OPENAI_API_URL || 'https://api.openai.com/v1',
+      apiKey: openaiKey,
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      provider: 'openai' as const
+    };
+  } else if (llmKey) {
+    // Fallback to Z-AI (local development)
+    return {
+      baseUrl: process.env.LLM_API_URL || 'http://172.25.136.193:8080/v1',
+      apiKey: llmKey,
+      model: 'default',
+      provider: 'zai' as const
+    };
+  }
+  return {
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    provider: 'none' as const
+  };
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,11 +64,11 @@ export async function POST(request: NextRequest) {
     // Get API config
     const config = getApiConfig();
     
-    if (!config.baseUrl || !config.apiKey) {
-      console.error('[Translate API] Missing API configuration');
+    if (!config.apiKey) {
+      console.error('[Translate API] Missing API key');
       return NextResponse.json({ 
         error: 'API not configured', 
-        details: 'Please set LLM_API_URL and LLM_API_KEY environment variables' 
+        details: 'Please set OPENAI_API_KEY environment variable' 
       }, { status: 500 });
     }
 
@@ -83,38 +105,48 @@ ${textsList}
 
 Return format: ["translation for text 0", "translation for text 1", ...]`;
 
-    console.log('[Translate API] Sending request to LLM...');
+    console.log(`[Translate API] Sending request to ${config.provider}...`);
 
-    // Build headers
+    // Build request based on provider
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`,
-      'X-Z-AI-From': 'Z'
+      'Authorization': `Bearer ${config.apiKey}`
     };
 
-    if (config.chatId) {
-      headers['X-Chat-Id'] = config.chatId;
-    }
-    if (config.userId) {
-      headers['X-User-Id'] = config.userId;
-    }
+    let requestBody: Record<string, unknown>;
 
-    // Make request directly
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
+    if (config.provider === 'zai') {
+      // Z-AI specific headers
+      headers['X-Z-AI-From'] = 'Z';
+      requestBody = {
         messages: [
           { role: 'assistant', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
         thinking: { type: 'disabled' }
-      })
+      };
+    } else {
+      // OpenAI format
+      requestBody = {
+        model: config.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3
+      };
+    }
+
+    // Make request
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Translate API] LLM request failed:', response.status, errorText);
+      console.error(`[Translate API] ${config.provider} request failed:`, response.status, errorText);
       return NextResponse.json({ 
         error: 'Translation API failed', 
         details: `Status ${response.status}: ${errorText}` 
@@ -123,7 +155,7 @@ Return format: ["translation for text 0", "translation for text 1", ...]`;
 
     const completion = await response.json();
     const content = completion.choices?.[0]?.message?.content || '';
-    console.log('[Translate API] LLM response:', content.substring(0, 200) + '...');
+    console.log(`[Translate API] ${config.provider} response:`, content.substring(0, 200) + '...');
 
     // Parse JSON array from response
     let translations: string[] = [];
