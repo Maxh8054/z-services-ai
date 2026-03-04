@@ -68,12 +68,35 @@ Analyze the text for errors:
 2. Grammar errors (including verb agreement, tense, etc.)
 3. Punctuation errors
 
-SPECIAL RULES:
-- "Cilindru" → should correct to "cilindro" (Portuguese)
-- "Cilinder" when UI is Portuguese → suggest "cilindro" (the user is trying to write in Portuguese)
-- "Cilinder" when UI is English → correct to "cylinder" (English spelling)
-- Always consider what the user INTENDED to write based on their UI language
-- Be comprehensive - catch all spelling variations and typos
+PORTUGUESE TECHNICAL WORDS - These are CORRECT words (do not flag as errors):
+- caçamba (bucket/bed of truck)
+- cilindro (cylinder)
+- pistão (piston)
+- válvula (valve)
+- mangueira (hose)
+- rolamento (bearing)
+- vedação (seal)
+- acoplamento (coupling)
+- flange (flange)
+- bucha (bushing)
+- pinhão (pinion)
+- engrenagem (gear)
+- eixo (shaft)
+- mancal (bearing housing)
+
+COMMON PORTUGUESE MISSPELLINGS - Correct these:
+- "casamba" → "caçamba" (NOT "cansamba"!)
+- "cilindru" → "cilindro"
+- "cilinder" → "cilindro" (when UI is Portuguese)
+- "valvula" → "válvula"
+- "mangueira" is correct, "manguera" is Spanish
+
+CRITICAL RULES:
+1. When the user types a phonetic approximation, think about what Portuguese word they MEANT
+2. "casamba" sounds like "caçamba" - the user wants "caçamba"
+3. NEVER suggest made-up words like "cansamba"
+4. Always suggest the CORRECT Portuguese word that exists in the dictionary
+5. Consider technical/industrial context - this is a maintenance report system
 
 Respond ONLY with a valid JSON object:
 {
@@ -81,7 +104,7 @@ Respond ONLY with a valid JSON object:
   "errors": [
     {
       "original": "incorrect word/phrase",
-      "suggestions": ["correction1", "correction2"],
+      "suggestions": ["correction1"],
       "type": "spelling" | "grammar" | "punctuation",
       "message": "explanation in the detected/preferred language",
       "position": 0
@@ -92,7 +115,7 @@ Respond ONLY with a valid JSON object:
 Important rules:
 - If the user's UI is in a specific language, they probably want to write in that language
 - Check for phonetic misspellings (how the word sounds)
-- Check for similar-looking words
+- ONLY suggest REAL words that exist in the dictionary
 - Return the message in the SAME language as the user's preferred/detected language
 - position is the 0-based character index where error starts`;
 
