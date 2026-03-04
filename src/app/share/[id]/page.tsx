@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { TextareaWithSpellCheck } from '@/components/TextareaWithSpellCheck';
 import { 
   AlertCircle, 
   Loader2, 
@@ -702,11 +703,12 @@ export default function SharedReportPage() {
             </CardHeader>
             <CardContent>
               {isEditor ? (
-                <Textarea
+                <TextareaWithSpellCheck
                   value={editedData.inspection?.descricao || ''}
-                  onChange={(e) => updateField('descricao', e.target.value)}
+                  onChange={(value) => updateField('descricao', value)}
                   className="text-sm"
                   placeholder="Descrição do problema..."
+                  language="pt"
                 />
               ) : (
                 <p className="whitespace-pre-wrap text-sm">{editedData.inspection?.descricao || 'Sem descrição'}</p>
@@ -721,11 +723,12 @@ export default function SharedReportPage() {
             </CardHeader>
             <CardContent>
               {isEditor ? (
-                <Textarea
+                <TextareaWithSpellCheck
                   value={editedData.conclusion || ''}
-                  onChange={(e) => updateConclusion(e.target.value)}
+                  onChange={(value) => updateConclusion(value)}
                   className="text-sm"
                   placeholder="Conclusão do relatório..."
+                  language="pt"
                 />
               ) : (
                 <p className="whitespace-pre-wrap text-sm">{editedData.conclusion || 'Sem conclusão'}</p>

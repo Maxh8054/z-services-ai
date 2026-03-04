@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { TextareaWithSpellCheck } from '@/components/TextareaWithSpellCheck';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -42,7 +43,7 @@ function generateId(): string {
 }
 
 export function SharedContent() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const { data: session } = useSession();
   const router = useRouter();
   const {
@@ -690,10 +691,11 @@ export function SharedContent() {
           {/* Descrição */}
           <div className="space-y-2">
             <Label>{t('report.descricao')}</Label>
-            <Textarea
+            <TextareaWithSpellCheck
               value={inspection.descricao}
-              onChange={(e) => handleInspectionChange('descricao', e.target.value)}
+              onChange={(value) => handleInspectionChange('descricao', value)}
               rows={3}
+              language={language}
             />
           </div>
         </CardContent>
@@ -798,11 +800,12 @@ export function SharedContent() {
           <CardTitle>{t('conclusion.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Textarea
+          <TextareaWithSpellCheck
             value={conclusion}
-            onChange={(e) => handleConclusionChange(e.target.value)}
+            onChange={handleConclusionChange}
             placeholder={t('conclusion.placeholder')}
             rows={4}
+            language={language}
           />
         </CardContent>
       </Card>
