@@ -104,6 +104,7 @@ const initialInspection: InspectionData = {
   machinePhoto: null,
   horimetroPhoto: null,
   serialPhoto: null,
+  localPhoto: null,
 };
 
 const createInitialPhotos = (count: number): PhotoData[] => {
@@ -311,7 +312,43 @@ export const useReportStore = create<ReportState>()(
     }),
     {
       name: 'report-storage',
-      version: 2,
+      version: 3,
+      // Exclude large image data from localStorage to avoid quota issues
+      partialize: (state) => ({
+        ...state,
+        photos: state.photos.map(photo => ({
+          ...photo,
+          imageData: undefined, // Don't persist large base64 images
+          editedImageData: undefined, // Don't persist large base64 images
+        })),
+        inspection: {
+          ...state.inspection,
+          machinePhoto: undefined, // Don't persist large base64 images
+          horimetroPhoto: undefined,
+          serialPhoto: undefined,
+          localPhoto: undefined,
+        },
+      }),
+      // Migration function to handle version changes
+      migrate: (persistedState: any, version: number) => {
+        // If version is older, clear large data to prevent quota issues
+        if (version < 3 && persistedState) {
+          if (persistedState.photos) {
+            persistedState.photos = persistedState.photos.map((photo: any) => ({
+              ...photo,
+              imageData: undefined,
+              editedImageData: undefined,
+            }));
+          }
+          if (persistedState.inspection) {
+            persistedState.inspection.machinePhoto = undefined;
+            persistedState.inspection.horimetroPhoto = undefined;
+            persistedState.inspection.serialPhoto = undefined;
+            persistedState.inspection.localPhoto = undefined;
+          }
+        }
+        return persistedState;
+      },
     }
   )
 );

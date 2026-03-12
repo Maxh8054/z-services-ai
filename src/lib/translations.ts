@@ -48,6 +48,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'machine.equipmentPhoto': 'Foto do Equipamento',
     'machine.hourMeterPhoto': 'Foto do Horímetro',
     'machine.serialPhoto': 'Foto do Serial Number',
+    'machine.localPhoto': 'Foto do Local',
     'machine.equipmentTag': 'TAG do Equipamento',
     'machine.serialNumber': 'Número de Série',
     
@@ -129,6 +130,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'action.importJson': 'Importar JSON',
     'action.importJsonDesc': 'Carregar dados de arquivo .json',
     'action.addPhoto': 'Adicionar Foto',
+    'action.translate': 'Traduzir Conteúdo',
     'action.add': 'Adicionar',
     'action.remove': 'Remover',
     'action.edit': 'Editar',
@@ -296,6 +298,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'machine.equipmentPhoto': 'Equipment Photo',
     'machine.hourMeterPhoto': 'Hour Meter Photo',
     'machine.serialPhoto': 'Serial Number Photo',
+    'machine.localPhoto': 'Location Photo',
     'machine.equipmentTag': 'Equipment TAG',
     'machine.serialNumber': 'Serial Number',
     
@@ -377,6 +380,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'action.importJson': 'Import JSON',
     'action.importJsonDesc': 'Load data from .json file',
     'action.addPhoto': 'Add Photo',
+    'action.translate': 'Translate Content',
     'action.add': 'Add',
     'action.remove': 'Remove',
     'action.edit': 'Edit',
@@ -544,6 +548,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'machine.equipmentPhoto': '設備写真',
     'machine.hourMeterPhoto': 'アワーメーター写真',
     'machine.serialPhoto': 'シリアル番号写真',
+    'machine.localPhoto': '場所写真',
     'machine.equipmentTag': '設備TAG',
     'machine.serialNumber': 'シリアル番号',
     
@@ -625,6 +630,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'action.importJson': 'JSONインポート',
     'action.importJsonDesc': '.jsonファイルからデータを読み込み',
     'action.addPhoto': '写真を追加',
+    'action.translate': 'コンテンツを翻訳',
     'action.add': '追加',
     'action.remove': '削除',
     'action.edit': '編集',
@@ -729,6 +735,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'machine.equipmentPhoto': '设备照片',
     'machine.hourMeterPhoto': '小时表照片',
     'machine.serialPhoto': '序列号照片',
+    'machine.localPhoto': '地点照片',
     'machine.equipmentTag': '设备TAG',
     'machine.serialNumber': '序列号',
     
@@ -810,6 +817,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'action.importJson': '导入JSON',
     'action.importJsonDesc': '从.json文件加载数据',
     'action.addPhoto': '添加照片',
+    'action.translate': '翻译内容',
     'action.add': '添加',
     'action.remove': '删除',
     'action.edit': '编辑',

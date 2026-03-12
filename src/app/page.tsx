@@ -41,11 +41,27 @@ import { useHomeReportStore } from '@/store/homeReportStore';
 import { useSharedReportStore } from '@/store/sharedReportStore';
 import { useTranslationStore, useTranslation } from '@/store/translationStore';
 import { TAG_OPTIONS, MACHINE_DATA } from '@/lib/config';
-import { LANGUAGE_NAMES, LANGUAGE_FLAGS, type Language } from '@/lib/translations';
 import type { PhotoData, AdditionalPart, EmbeddedPhoto, PhotoCategory, Criticality } from '@/types/report';
 import { SharedContent } from '@/components/SharedContent';
 import { HistoryContent } from '@/components/HistoryContent';
 import { isHistoryAdmin } from '@/lib/auth';
+
+// Translation language constants
+type Language = 'pt' | 'en' | 'ja' | 'zh';
+
+const LANGUAGE_FLAGS: Record<Language, string> = {
+  pt: '🇧🇷',
+  en: '🇺🇸',
+  ja: '🇯🇵',
+  zh: '🇨🇳',
+};
+
+const LANGUAGE_NAMES: Record<Language, string> = {
+  pt: 'Português',
+  en: 'English',
+  ja: '日本語',
+  zh: '中文',
+};
 
 // Tipo para objetos do editor
 interface EditorCircle {
@@ -952,6 +968,33 @@ function PhotoEditor({
   );
 }
 
+// Função para gerar imagem preta com número de série
+function generateSerialNumberImage(serialNumber: string | undefined): string | null {
+  if (!serialNumber || serialNumber.trim() === '') return null;
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = 400;
+  canvas.height = 200;
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) return null;
+  
+  // Fundo preto
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Texto branco
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 32px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  // Desenhar o número de série
+  ctx.fillText(serialNumber.trim(), canvas.width / 2, canvas.height / 2);
+  
+  return canvas.toDataURL('image/png');
+}
+
 // Componente para foto de identificação
 function IdentificationPhoto({
   label,
@@ -1676,10 +1719,11 @@ function HomeContent() {
             {/* Fotos de Identificação da Máquina */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2"><Camera className="h-5 w-5 text-orange-500" />{t('machine.identification')}</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <IdentificationPhoto label={t('machine.equipmentPhoto')} imageData={inspection.machinePhoto} onUpload={(data) => updateInspection({ machinePhoto: data })} onRemove={() => updateInspection({ machinePhoto: null })} caption={inspection.tag || t('machine.equipmentTag')} t={t} />
                 <IdentificationPhoto label={t('machine.hourMeterPhoto')} imageData={inspection.horimetroPhoto} onUpload={(data) => updateInspection({ horimetroPhoto: data })} onRemove={() => updateInspection({ horimetroPhoto: null })} caption={`${t('report.hourMeter')}: ${inspection.horimetro || '-'}`} t={t} />
-                <IdentificationPhoto label={t('machine.serialPhoto')} imageData={inspection.serialPhoto} onUpload={(data) => updateInspection({ serialPhoto: data })} onRemove={() => updateInspection({ serialPhoto: null })} caption={`${t('machine.serialNumber')}: ${inspection.sn || '-'}`} t={t} />
+                <IdentificationPhoto label={t('machine.serialPhoto')} imageData={inspection.serialPhoto || generateSerialNumberImage(inspection.sn)} onUpload={(data) => updateInspection({ serialPhoto: data })} onRemove={() => updateInspection({ serialPhoto: null })} caption={`${t('machine.serialNumber')}: ${inspection.sn || '-'}`} t={t} />
+                <IdentificationPhoto label={t('machine.localPhoto')} imageData={inspection.localPhoto} onUpload={(data) => updateInspection({ localPhoto: data })} onRemove={() => updateInspection({ localPhoto: null })} t={t} />
               </div>
             </div>
 
@@ -2050,6 +2094,9 @@ function InspecaoContent() {
   const [cameraTargetId, setCameraTargetId] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showDataDialog, setShowDataDialog] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showTranslateDialog, setShowTranslateDialog] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0, status: '' });
   const shareDialog = useShareDialog();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2257,6 +2304,142 @@ function InspecaoContent() {
     reader.readAsText(file);
   };
 
+  // Função para traduzir todos os textos dinâmicos
+  const handleTranslateAll = async (targetLang: Language) => {
+    if (targetLang === 'pt') {
+      alert('O conteúdo já está em Português!');
+      return;
+    }
+    
+    setShowTranslateDialog(true);
+    setIsTranslating(true);
+    
+    try {
+      // Coletar todos os textos para traduzir
+      const textItems: { id: string; text: string; type: string }[] = [];
+      
+      // Textos da inspeção
+      if (inspection.descricao?.trim()) {
+        textItems.push({ id: 'inspection.descricao', text: inspection.descricao, type: 'inspection' });
+      }
+      if (inspection.osExecucao?.trim()) {
+        textItems.push({ id: 'inspection.osExecucao', text: inspection.osExecucao, type: 'inspection' });
+      }
+      if (inspection.inspetor?.trim()) {
+        textItems.push({ id: 'inspection.inspetor', text: inspection.inspetor, type: 'inspection' });
+      }
+      if (inspection.cliente?.trim()) {
+        textItems.push({ id: 'inspection.cliente', text: inspection.cliente, type: 'inspection' });
+      }
+      
+      // Textos das fotos
+      photos.forEach((photo, idx) => {
+        if (photo.description?.trim()) {
+          textItems.push({ id: `photo.${photo.id}.description`, text: photo.description, type: 'photo' });
+        }
+        if (photo.partName?.trim()) {
+          textItems.push({ id: `photo.${photo.id}.partName`, text: photo.partName, type: 'photo' });
+        }
+      });
+      
+      // Textos das peças adicionais
+      additionalParts.forEach((part) => {
+        if (part.partName?.trim()) {
+          textItems.push({ id: `part.${part.id}.partName`, text: part.partName, type: 'part' });
+        }
+      });
+      
+      // Conclusão
+      if (conclusion?.trim()) {
+        textItems.push({ id: 'conclusion', text: conclusion, type: 'conclusion' });
+      }
+      
+      const total = textItems.length;
+      setTranslateProgress({ current: 0, total, status: `Encontrados ${total} textos para traduzir` });
+      
+      if (total === 0) {
+        alert('Nenhum texto encontrado para traduzir!');
+        setShowTranslateDialog(false);
+        setIsTranslating(false);
+        return;
+      }
+      
+      // Enviar todos os textos para tradução
+      setTranslateProgress({ current: 0, total, status: 'Enviando para API de tradução...' });
+      
+      const response = await fetch('/api/translate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          texts: textItems.map(item => item.text),
+          targetLanguage: targetLang,
+          sourceLanguage: 'pt',
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erro na API: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const translations: string[] = data.translations || [];
+      
+      setTranslateProgress({ current: total, total, status: 'Aplicando traduções...' });
+      
+      // Aplicar traduções de volta
+      for (let i = 0; i < textItems.length; i++) {
+        const item = textItems[i];
+        const translation = translations[i] || item.text;
+        
+        if (item.id === 'inspection.descricao') {
+          updateInspection({ descricao: translation });
+        } else if (item.id === 'inspection.osExecucao') {
+          updateInspection({ osExecucao: translation });
+        } else if (item.id === 'inspection.inspetor') {
+          updateInspection({ inspetor: translation });
+        } else if (item.id === 'inspection.cliente') {
+          updateInspection({ cliente: translation });
+        } else if (item.id === 'conclusion') {
+          setConclusion(translation);
+        } else if (item.id.startsWith('photo.')) {
+          const [, photoId, field] = item.id.split('.');
+          if (field === 'description') {
+            updatePhoto(photoId, { description: translation });
+          } else if (field === 'partName') {
+            updatePhoto(photoId, { partName: translation });
+          }
+        } else if (item.id.startsWith('part.')) {
+          const [, partId] = item.id.split('.');
+          const partIndex = additionalParts.findIndex(p => p.id === partId);
+          if (partIndex !== -1) {
+            const updatedParts = [...additionalParts];
+            updatedParts[partIndex] = { ...updatedParts[partIndex], partName: translation };
+            setAdditionalParts(updatedParts);
+          }
+        }
+      }
+      
+      setTranslateProgress({ current: total, total, status: 'Tradução concluída!' });
+      
+      setTimeout(() => {
+        setShowTranslateDialog(false);
+        alert(`✅ Tradução concluída!\n\n${total} textos traduzidos para ${LANGUAGE_NAMES[targetLang]}`);
+      }, 500);
+      
+    } catch (error) {
+      console.error('Erro ao traduzir:', error);
+      alert('Erro ao traduzir o conteúdo: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+      setShowTranslateDialog(false);
+    }
+    setIsTranslating(false);
+  };
+
+  // Função para abrir o diálogo de tradução
+  const handleTranslateContent = () => {
+    setShowTranslateDialog(true);
+  };
+
   const handleGeneratePPT = async () => {
     setIsLoading(true);
     try {
@@ -2350,6 +2533,17 @@ function InspecaoContent() {
       <div className="fixed top-20 right-4 md:flex flex-col gap-2 z-40 hidden">
         <Button size="icon" className="rounded-full bg-green-600 hover:bg-green-700" onClick={() => addPhoto()} title={t('action.addPhoto')}><Plus className="h-5 w-5" /></Button>
         <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700" onClick={() => setShowClearConfirm(true)} title={t('action.clear')}><Trash2 className="h-5 w-5" /></Button>
+        
+        {/* Botão de Traduzir */}
+        <Button 
+          size="icon" 
+          className={`rounded-full ${language === 'pt' ? 'bg-gray-400' : 'bg-cyan-600 hover:bg-cyan-700'}`} 
+          onClick={handleTranslateContent} 
+          disabled={language === 'pt' || isTranslating}
+          title={language === 'pt' ? 'Conteúdo em Português' : t('action.translate')}
+        >
+          {isTranslating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Globe className="h-5 w-5" />}
+        </Button>
         
         {/* Botão de Dados (Importar/Exportar JSON) */}
         <Button size="icon" className="rounded-full bg-blue-600 hover:bg-blue-700" onClick={() => setShowDataDialog(true)} title={t('action.importExport')}><FileDown className="h-5 w-5" /></Button>
@@ -2524,6 +2718,72 @@ function InspecaoContent() {
         </DialogContent>
       </Dialog>
 
+      {/* Translate Dialog - InspecaoContent */}
+      <Dialog open={showTranslateDialog} onOpenChange={setShowTranslateDialog}>
+        <DialogContent className="max-w-[90vw] md:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              <Globe className="h-5 w-5 text-cyan-500" />
+              {t('action.translate')}
+            </DialogTitle>
+            <DialogDescription>Traduzir todos os textos do relatório</DialogDescription>
+          </DialogHeader>
+          
+          {isTranslating ? (
+            <div className="py-8 space-y-4 text-center">
+              <div className="relative w-24 h-24 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-cyan-200"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-cyan-500 border-t-transparent animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-lg font-bold text-cyan-600">
+                    {translateProgress.total > 0 ? Math.round((translateProgress.current / translateProgress.total) * 100) : 0}%
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="font-medium text-gray-700">{translateProgress.status}</p>
+                {translateProgress.total > 0 && (
+                  <p className="text-sm text-gray-500">
+                    {translateProgress.current} / {translateProgress.total} textos
+                  </p>
+                )}
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-cyan-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${translateProgress.total > 0 ? (translateProgress.current / translateProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-4">
+              <p className="text-sm text-gray-600 mb-4">Selecione o idioma de destino:</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(['en', 'ja', 'zh'] as Language[]).map((lang) => (
+                  <Button
+                    key={lang}
+                    variant="outline"
+                    className="h-20 flex flex-col items-center justify-center gap-1"
+                    onClick={() => handleTranslateAll(lang)}
+                  >
+                    <span className="text-2xl">{LANGUAGE_FLAGS[lang]}</span>
+                    <span className="text-xs font-medium">{LANGUAGE_NAMES[lang]}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {!isTranslating && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowTranslateDialog(false)}>
+                {t('action.cancel')}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Cover Page */}
       <section className="p-8">
         <Card className="max-w-4xl mx-auto">
@@ -2546,10 +2806,11 @@ function InspecaoContent() {
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2"><Camera className="h-5 w-5 text-orange-500" />{t('machine.identification')}</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <IdentificationPhoto label={t('machine.equipmentPhoto')} imageData={inspection.machinePhoto} onUpload={(data) => updateInspection({ machinePhoto: data })} onRemove={() => updateInspection({ machinePhoto: null })} caption={inspection.tag || t('machine.equipmentTag')} t={t} />
                 <IdentificationPhoto label={t('machine.hourMeterPhoto')} imageData={inspection.horimetroPhoto} onUpload={(data) => updateInspection({ horimetroPhoto: data })} onRemove={() => updateInspection({ horimetroPhoto: null })} caption={`${t('report.hourMeter')}: ${inspection.horimetro || '-'}`} t={t} />
-                <IdentificationPhoto label={t('machine.serialPhoto')} imageData={inspection.serialPhoto} onUpload={(data) => updateInspection({ serialPhoto: data })} onRemove={() => updateInspection({ serialPhoto: null })} caption={`${t('machine.serialNumber')}: ${inspection.sn || '-'}`} t={t} />
+                <IdentificationPhoto label={t('machine.serialPhoto')} imageData={inspection.serialPhoto || generateSerialNumberImage(inspection.sn)} onUpload={(data) => updateInspection({ serialPhoto: data })} onRemove={() => updateInspection({ serialPhoto: null })} caption={`${t('machine.serialNumber')}: ${inspection.sn || '-'}`} t={t} />
+                <IdentificationPhoto label={t('machine.localPhoto')} imageData={inspection.localPhoto} onUpload={(data) => updateInspection({ localPhoto: data })} onRemove={() => updateInspection({ localPhoto: null })} t={t} />
               </div>
             </div>
 

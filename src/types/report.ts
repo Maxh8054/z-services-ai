@@ -59,6 +59,7 @@ export interface InspectionData {
   machinePhoto: string | null; // Foto da máquina inteira
   horimetroPhoto: string | null; // Foto do horímetro
   serialPhoto: string | null; // Foto do serial number
+  localPhoto: string | null; // Foto do local
 }
 
 // Categoria de foto para a aba Home

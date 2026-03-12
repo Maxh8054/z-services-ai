@@ -144,6 +144,7 @@ const initialInspection: InspectionData = {
   machinePhoto: null,
   horimetroPhoto: null,
   serialPhoto: null,
+  localPhoto: null,
 };
 
 export const useHomeReportStore = create<HomeReportState>()(
