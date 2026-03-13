@@ -1205,11 +1205,149 @@ function HomeContent() {
   const [cameraTarget, setCameraTarget] = useState<{ categoryId: string; photoId: string } | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showDataDialog, setShowDataDialog] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showTranslateDialog, setShowTranslateDialog] = useState(false);
+  const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0, status: '' });
   const shareDialog = useShareDialog();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileImportRef = useRef<HTMLInputElement>(null);
   const clipboardPhotoId = useRef<{ categoryId: string; photoId: string } | null>(null);
+
+  // Função para traduzir todos os textos dinâmicos - HomeContent
+  const handleTranslateAllHome = async (targetLang: Language) => {
+    setShowTranslateDialog(true);
+    setIsTranslating(true);
+    
+    try {
+      // Coletar todos os textos para traduzir
+      const textItems: { id: string; text: string; type: string }[] = [];
+      
+      // Textos da inspeção
+      if (inspection.descricao?.trim()) {
+        textItems.push({ id: 'inspection.descricao', text: inspection.descricao, type: 'inspection' });
+      }
+      if (inspection.osExecucao?.trim()) {
+        textItems.push({ id: 'inspection.osExecucao', text: inspection.osExecucao, type: 'inspection' });
+      }
+      if (inspection.inspetor?.trim()) {
+        textItems.push({ id: 'inspection.inspetor', text: inspection.inspetor, type: 'inspection' });
+      }
+      if (inspection.cliente?.trim()) {
+        textItems.push({ id: 'inspection.cliente', text: inspection.cliente, type: 'inspection' });
+      }
+      
+      // Textos das categorias e fotos
+      categories.forEach((category) => {
+        category.photos.forEach((photo) => {
+          if (photo.description?.trim()) {
+            textItems.push({ id: `photo.${category.id}.${photo.id}.description`, text: photo.description, type: 'photo' });
+          }
+          if (photo.partName?.trim()) {
+            textItems.push({ id: `photo.${category.id}.${photo.id}.partName`, text: photo.partName, type: 'photo' });
+          }
+        });
+        
+        // Peças adicionais
+        category.additionalParts?.forEach((part) => {
+          if (part.partName?.trim()) {
+            textItems.push({ id: `part.${category.id}.${part.id}.partName`, text: part.partName, type: 'part' });
+          }
+        });
+      });
+      
+      // Conclusão
+      if (conclusion?.trim()) {
+        textItems.push({ id: 'conclusion', text: conclusion, type: 'conclusion' });
+      }
+      
+      const total = textItems.length;
+      setTranslateProgress({ current: 0, total, status: `Encontrados ${total} textos para traduzir` });
+      
+      if (total === 0) {
+        alert('Nenhum texto encontrado para traduzir!');
+        setShowTranslateDialog(false);
+        setIsTranslating(false);
+        return;
+      }
+      
+      // Enviar todos os textos para tradução
+      setTranslateProgress({ current: 0, total, status: 'Enviando para API de tradução...' });
+      
+      const response = await fetch('/api/translate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          texts: textItems.map(item => item.text),
+          targetLanguage: targetLang,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erro na API: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const translations: string[] = data.translations || [];
+      
+      setTranslateProgress({ current: total, total, status: 'Aplicando traduções...' });
+      
+      // Aplicar traduções de volta
+      for (let i = 0; i < textItems.length; i++) {
+        const item = textItems[i];
+        const translation = translations[i] || item.text;
+        
+        if (item.id === 'inspection.descricao') {
+          updateInspection({ descricao: translation });
+        } else if (item.id === 'inspection.osExecucao') {
+          updateInspection({ osExecucao: translation });
+        } else if (item.id === 'inspection.inspetor') {
+          updateInspection({ inspetor: translation });
+        } else if (item.id === 'inspection.cliente') {
+          updateInspection({ cliente: translation });
+        } else if (item.id === 'conclusion') {
+          setConclusion(translation);
+        } else if (item.id.startsWith('photo.')) {
+          const [, categoryId, photoId, field] = item.id.split('.');
+          if (field === 'description') {
+            updatePhotoInCategory(categoryId, photoId, { description: translation });
+          } else if (field === 'partName') {
+            updatePhotoInCategory(categoryId, photoId, { partName: translation });
+          }
+        } else if (item.id.startsWith('part.')) {
+          const [, categoryId, partId] = item.id.split('.');
+          const category = categories.find(c => c.id === categoryId);
+          if (category) {
+            const partIndex = category.additionalParts?.findIndex(p => p.id === partId) ?? -1;
+            if (partIndex !== -1 && category.additionalParts) {
+              const updatedParts = [...category.additionalParts];
+              updatedParts[partIndex] = { ...updatedParts[partIndex], partName: translation };
+              // Update via store if available, otherwise skip
+            }
+          }
+        }
+      }
+      
+      setTranslateProgress({ current: total, total, status: 'Tradução concluída!' });
+      
+      setTimeout(() => {
+        setShowTranslateDialog(false);
+        alert(`✅ Tradução concluída!\n\n${total} textos traduzidos para ${LANGUAGE_NAMES[targetLang]}`);
+      }, 500);
+      
+    } catch (error) {
+      console.error('Erro ao traduzir:', error);
+      alert('Erro ao traduzir o conteúdo: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+      setShowTranslateDialog(false);
+    }
+    setIsTranslating(false);
+  };
+
+  // Função para abrir o diálogo de tradução
+  const handleTranslateContentHome = () => {
+    setShowTranslateDialog(true);
+  };
 
   const handleTagChange = (tag: string) => {
     updateInspection({ tag });
@@ -1521,6 +1659,17 @@ function HomeContent() {
       {/* Action Buttons - Responsivo */}
       <div className="fixed top-20 right-4 md:flex flex-col gap-2 z-40 hidden">
         <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700" onClick={() => setShowClearConfirm(true)} title={t('action.clear')}><Trash2 className="h-5 w-5" /></Button>
+        
+        {/* Botão de Traduzir */}
+        <Button 
+          size="icon" 
+          className="rounded-full bg-cyan-600 hover:bg-cyan-700" 
+          onClick={handleTranslateContentHome} 
+          disabled={isTranslating}
+          title={t('action.translate')}
+        >
+          {isTranslating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Globe className="h-5 w-5" />}
+        </Button>
         
         {/* Botão de Dados (Importar/Exportar JSON) */}
         <Button size="icon" className="rounded-full bg-blue-600 hover:bg-blue-700" onClick={() => setShowDataDialog(true)} title={t('action.importExport')}><FileDown className="h-5 w-5" /></Button>
@@ -2032,6 +2181,72 @@ function HomeContent() {
           </div>
         </div>
       )}
+
+      {/* Translate Dialog - HomeContent */}
+      <Dialog open={showTranslateDialog} onOpenChange={setShowTranslateDialog}>
+        <DialogContent className="max-w-[90vw] md:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              <Globe className="h-5 w-5 text-cyan-500" />
+              {t('action.translate')}
+            </DialogTitle>
+            <DialogDescription>Traduzir todos os textos do relatório</DialogDescription>
+          </DialogHeader>
+          
+          {isTranslating ? (
+            <div className="py-8 space-y-4 text-center">
+              <div className="relative w-24 h-24 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-cyan-200"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-cyan-500 border-t-transparent animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-lg font-bold text-cyan-600">
+                    {translateProgress.total > 0 ? Math.round((translateProgress.current / translateProgress.total) * 100) : 0}%
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="font-medium text-gray-700">{translateProgress.status}</p>
+                {translateProgress.total > 0 && (
+                  <p className="text-sm text-gray-500">
+                    {translateProgress.current} / {translateProgress.total} textos
+                  </p>
+                )}
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-cyan-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${translateProgress.total > 0 ? (translateProgress.current / translateProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-4">
+              <p className="text-sm text-gray-600 mb-4">Selecione o idioma de destino:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['pt', 'en', 'ja', 'zh'] as Language[]).map((lang) => (
+                  <Button
+                    key={lang}
+                    variant="outline"
+                    className="h-16 flex flex-col items-center justify-center gap-1"
+                    onClick={() => handleTranslateAllHome(lang)}
+                  >
+                    <span className="text-2xl">{LANGUAGE_FLAGS[lang]}</span>
+                    <span className="text-xs font-medium">{LANGUAGE_NAMES[lang]}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {!isTranslating && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowTranslateDialog(false)}>
+                {t('action.cancel')}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Clear Confirm Dialog */}
       <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
