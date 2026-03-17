@@ -34,7 +34,7 @@ import {
   Camera, FileImage, Edit, X, Check,
   Image as ImageIcon, Clock, Wrench, Package, ListTree, Circle,
   ArrowUpRight, MousePointer, Home, ClipboardList, ChevronDown, ChevronUp, Globe, Mail, Maximize2,
-  FileSpreadsheet, FileText, Share2, Users, FileDown, Import, History, CheckCircle, AlertTriangle, Menu, LogOut, Loader2
+  FileSpreadsheet, FileText, Share2, Users, FileDown, Import, History, CheckCircle, AlertTriangle, Menu, LogOut, Loader2, Images
 } from 'lucide-react';
 import { useReportStore } from '@/store/reportStore';
 import { useHomeReportStore } from '@/store/homeReportStore';
@@ -48,6 +48,8 @@ import { isHistoryAdmin } from '@/lib/auth';
 
 // Translation language constants
 type Language = 'pt' | 'en' | 'ja' | 'zh';
+
+const DEFAULT_CIRCLE_RADIUS = 80;
 
 const LANGUAGE_FLAGS: Record<Language, string> = {
   pt: '🇧🇷',
@@ -375,6 +377,8 @@ function AdditionalPartsSection({
   const [newPartName, setNewPartName] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
   const [newCriticality, setNewCriticality] = useState<'Alta' | 'Média' | 'Baixa' | ''>('');
+  const [showExcelPaste, setShowExcelPaste] = useState(false);
+  const [excelPasteData, setExcelPasteData] = useState('');
 
   const photoAdditionalParts = additionalParts.filter(p => p.parentPn === parentPn);
 
@@ -398,6 +402,38 @@ function AdditionalPartsSection({
     setNewCriticality('');
   };
 
+  // Processar dados do Excel colados
+  const handlePasteExcel = () => {
+    if (!excelPasteData.trim()) return;
+    
+    // Parse dos dados - formato: Part No.      Q'ty    Part name (tab ou espaços)
+    const lines = excelPasteData.trim().split('\n');
+    
+    lines.forEach((line) => {
+      // Divide por tab ou múltiplos espaços
+      const parts = line.split(/\t+|\s{2,}/).map(p => p.trim()).filter(p => p);
+      
+      if (parts.length >= 3) {
+        const pn = parts[0];
+        const quantity = parts[1];
+        const partName = parts.slice(2).join(' '); // Nome pode ter espaços
+        
+        onAddPart({
+          id: `add-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          pn: pn,
+          serialNumber: '',
+          partName: partName,
+          quantity: quantity,
+          criticality: '',
+          parentPn: parentPn,
+        });
+      }
+    });
+    
+    setExcelPasteData('');
+    setShowExcelPaste(false);
+  };
+
   // Get badge color based on criticality
   const getCriticalityBadge = (criticality: string) => {
     switch (criticality) {
@@ -414,10 +450,56 @@ function AdditionalPartsSection({
 
   return (
     <div className="mt-3 p-3 bg-orange-50 rounded-lg border-2 border-orange-400 space-y-2">
-      <Label className="text-sm text-orange-800 font-bold flex items-center gap-2">
-        <ListTree className="h-4 w-4" />
-        {t('subparts.partsOf', { pn: parentPn || '...' })}
-      </Label>
+      <div className="flex items-center justify-between">
+        <Label className="text-sm text-orange-800 font-bold flex items-center gap-2">
+          <ListTree className="h-4 w-4" />
+          {t('subparts.partsOf', { pn: parentPn || '...' })}
+        </Label>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs text-orange-600 hover:text-orange-800"
+          onClick={() => setShowExcelPaste(!showExcelPaste)}
+        >
+          {showExcelPaste ? 'Manual' : 'Colar Excel'}
+        </Button>
+      </div>
+      
+      {/* Excel Paste Mode */}
+      {showExcelPaste && (
+        <div className="space-y-2">
+          <p className="text-xs text-orange-700">
+            Cole os dados do Excel no formato: Part No. | Q'ty | Part name (uma linha por peça)
+          </p>
+          <Textarea
+            className="min-h-[80px] text-sm"
+            placeholder="4244836&#9;4&#9;BUCHA&#10;4244837&#9;2&#9;ANEL"
+            value={excelPasteData}
+            onChange={(e) => setExcelPasteData(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="bg-orange-500 hover:bg-orange-600"
+              onClick={handlePasteExcel}
+              disabled={!excelPasteData.trim()}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Adicionar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setExcelPasteData(''); setShowExcelPaste(false); }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      {/* Manual Mode */}
+      {!showExcelPaste && (
+        <>
       
       {photoAdditionalParts.length > 0 && (
         <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -468,8 +550,8 @@ function AdditionalPartsSection({
       <div className="hidden md:grid grid-cols-12 gap-2">
         <Input className="h-8 text-sm col-span-2" placeholder="PN" value={newPn} onChange={(e) => setNewPn(e.target.value)} />
         <Input className="h-8 text-sm col-span-2" placeholder={t('photo.serialPlaceholder')} value={newSerialNumber} onChange={(e) => setNewSerialNumber(e.target.value)} />
-        <Input className="h-8 text-sm col-span-3" placeholder={t('photo.partNamePlaceholder')} value={newPartName} onChange={(e) => setNewPartName(e.target.value)} />
-        <Input className="h-8 text-sm col-span-1" placeholder={t('photo.quantityPlaceholder')} type="number" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
+        <Input className="h-8 text-sm col-span-2" placeholder={t('photo.partNamePlaceholder')} value={newPartName} onChange={(e) => setNewPartName(e.target.value)} />
+        <Input className="h-8 text-sm col-span-2" placeholder={t('photo.quantityPlaceholder')} type="number" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} />
         <Select value={newCriticality} onValueChange={(v) => setNewCriticality(v as 'Alta' | 'Média' | 'Baixa' | '')}>
           <SelectTrigger className="h-8 text-xs col-span-2">
             <SelectValue placeholder={t('photo.criticality')} />
@@ -484,18 +566,25 @@ function AdditionalPartsSection({
           <Plus className="h-4 w-4" />
         </Button>
       </div>
+        </>
+      )}
     </div>
   );
 }
 
+// Tipo para modo de edição de foto
+type PhotoEditMode = 'primary' | 'secondary' | 'dual';
+
 // Editor de Foto
 function PhotoEditor({
   photo,
+  editMode = 'primary',
   onSave,
   onClose,
   t,
 }: {
   photo: PhotoData;
+  editMode?: PhotoEditMode;
   onSave: (data: Partial<PhotoData>) => void;
   onClose: () => void;
   t: (key: string, params?: Record<string, string | number>) => string;
@@ -521,29 +610,91 @@ function PhotoEditor({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [currentColor, setCurrentColor] = useState('#f97316');
+  const [circleRadius, setCircleRadius] = useState(80);
   const [showAddPhotoDialog, setShowAddPhotoDialog] = useState(false);
   const [pendingPhotoCircle, setPendingPhotoCircle] = useState<EditorCircle | null>(null);
   const [isDrawingArrow, setIsDrawingArrow] = useState(false);
   const [arrowStart, setArrowStart] = useState<{ x: number; y: number } | null>(null);
   const [arrowPreview, setArrowPreview] = useState<{ x: number; y: number } | null>(null);
 
-  const imageSrc = photo.editedImageData || photo.imageData;
+  // Determinar qual imagem editar baseado no modo
+  const getActiveImageSrc = () => {
+    if (editMode === 'secondary') {
+      return photo.secondaryImageData;
+    }
+    if (editMode === 'dual' && photo.imageData && photo.secondaryImageData) {
+      // Criar imagem combinada lado a lado
+      return null; // Será tratado separadamente
+    }
+    return photo.editedImageData || photo.imageData;
+  };
+  
+  const imageSrc = getActiveImageSrc();
+  const [dualCanvasSize, setDualCanvasSize] = useState<{ width: number; height: number } | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0, scale: 1 });
 
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const containerWidth = Math.min(container.clientWidth - 32, 900);
+    const containerHeight = 500;
+
+    // Modo duplo: carregar ambas as imagens lado a lado
+    if (editMode === 'dual' && photo.imageData && photo.secondaryImageData) {
+      const img1 = new window.Image();
+      const img2 = new window.Image();
+      
+      let loaded = 0;
+      const checkLoaded = () => {
+        loaded++;
+        if (loaded === 2) {
+          // Calcular dimensões para ambas as imagens lado a lado
+          const halfWidth = containerWidth / 2 - 10;
+          const scale1 = Math.min(halfWidth / img1.width, containerHeight / img1.height);
+          const scale2 = Math.min(halfWidth / img2.width, containerHeight / img2.height);
+          const scale = Math.min(scale1, scale2);
+          
+          const totalWidth = (img1.width + img2.width) * scale + 10;
+          const totalHeight = Math.max(img1.height, img2.height) * scale;
+          
+          setCanvasSize({ width: totalWidth, height: totalHeight, scale });
+          setDualCanvasSize({ width: img1.width * scale, height: img1.height * scale });
+          
+          // Criar imagem combinada temporária
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = img1.width + img2.width;
+          tempCanvas.height = Math.max(img1.height, img2.height);
+          const ctx = tempCanvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img1, 0, 0);
+            ctx.drawImage(img2, img1.width, 0);
+          }
+          
+          const combinedImg = new window.Image();
+          combinedImg.onload = () => {
+            imgRef.current = combinedImg;
+          };
+          combinedImg.src = tempCanvas.toDataURL('image/png');
+        }
+      };
+      
+      img1.onload = checkLoaded;
+      img2.onload = checkLoaded;
+      img1.src = photo.imageData;
+      img2.src = photo.secondaryImageData;
+      return;
+    }
+
+    // Modo normal (primário ou secundário)
     if (!imageSrc) return;
     const img = new window.Image();
     img.onload = () => {
       imgRef.current = img;
-      const container = containerRef.current;
-      if (!container) return;
-      const containerWidth = Math.min(container.clientWidth - 32, 900);
-      const containerHeight = 500;
       const scale = Math.min(containerWidth / img.width, containerHeight / img.height);
       setCanvasSize({ width: img.width * scale, height: img.height * scale, scale });
     };
     img.src = imageSrc;
-  }, [imageSrc]);
+  }, [imageSrc, editMode, photo.imageData, photo.secondaryImageData]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -676,12 +827,12 @@ function PhotoEditor({
         setSelectedObjectId(null);
       }
     } else if (currentTool === 'circle') {
-      const newCircle: EditorCircle = { id: `circle-${Date.now()}`, type: 'circle', x: pos.x, y: pos.y, radius: 50, color: currentColor };
+      const newCircle: EditorCircle = { id: `circle-${Date.now()}`, type: 'circle', x: pos.x, y: pos.y, radius: circleRadius, color: currentColor };
       setObjects(prev => [...prev, newCircle]);
       setSelectedObjectId(newCircle.id);
       setCurrentTool('select');
     } else if (currentTool === 'circlePhoto') {
-      setPendingPhotoCircle({ id: `cp-${Date.now()}`, type: 'circleWithPhoto', x: pos.x, y: pos.y, radius: 50, color: currentColor });
+      setPendingPhotoCircle({ id: `cp-${Date.now()}`, type: 'circleWithPhoto', x: pos.x, y: pos.y, radius: circleRadius, color: currentColor });
       setShowAddPhotoDialog(true);
     } else if (currentTool === 'arrow') {
       setIsDrawingArrow(true);
@@ -739,12 +890,12 @@ function PhotoEditor({
         setSelectedObjectId(null);
       }
     } else if (currentTool === 'circle') {
-      const newCircle: EditorCircle = { id: `circle-${Date.now()}`, type: 'circle', x: pos.x, y: pos.y, radius: 50, color: currentColor };
+      const newCircle: EditorCircle = { id: `circle-${Date.now()}`, type: 'circle', x: pos.x, y: pos.y, radius: circleRadius, color: currentColor };
       setObjects(prev => [...prev, newCircle]);
       setSelectedObjectId(newCircle.id);
       setCurrentTool('select');
     } else if (currentTool === 'circlePhoto') {
-      setPendingPhotoCircle({ id: `cp-${Date.now()}`, type: 'circleWithPhoto', x: pos.x, y: pos.y, radius: 50, color: currentColor });
+      setPendingPhotoCircle({ id: `cp-${Date.now()}`, type: 'circleWithPhoto', x: pos.x, y: pos.y, radius: circleRadius, color: currentColor });
       setShowAddPhotoDialog(true);
     } else if (currentTool === 'arrow') {
       setIsDrawingArrow(true);
@@ -868,6 +1019,17 @@ function PhotoEditor({
               <button key={color} className={`w-8 h-8 rounded border-2 ${currentColor === color ? 'border-orange-500' : 'border-gray-300'}`} style={{ backgroundColor: color }} onClick={() => setCurrentColor(color)} />
             ))}
           </div>
+          <div className="flex items-center gap-1 flex-shrink-0 ml-2 border-l pl-2">
+            <input
+              type="range"
+              min="20"
+              max="200"
+              value={circleRadius}
+              onChange={(e) => setCircleRadius(Number(e.target.value))}
+              className="w-20 h-2 accent-orange-500"
+            />
+            <span className="text-xs text-gray-600">{circleRadius}</span>
+          </div>
           {selectedObjectId && (
             <div className="flex items-center gap-1 flex-shrink-0 ml-2">
               <Button variant="outline" size="sm" className="h-10 w-10 p-0" onClick={() => resizeSelected(-10)}>-</Button>
@@ -890,6 +1052,18 @@ function PhotoEditor({
             {['#f97316', '#ef4444', '#22c55e', '#3b82f6', '#ffffff', '#000000'].map(color => (
               <button key={color} className={`w-6 h-6 rounded border-2 ${currentColor === color ? 'border-orange-500' : 'border-gray-300'}`} style={{ backgroundColor: color }} onClick={() => setCurrentColor(color)} />
             ))}
+          </div>
+          <div className="flex items-center gap-2 border-l pl-3">
+            <Label className="text-xs text-gray-500">Tamanho:</Label>
+            <input
+              type="range"
+              min="20"
+              max="200"
+              value={circleRadius}
+              onChange={(e) => setCircleRadius(Number(e.target.value))}
+              className="w-24 h-2 accent-orange-500"
+            />
+            <span className="text-xs text-gray-600 w-8">{circleRadius}px</span>
           </div>
           {selectedObjectId && (
             <div className="flex items-center gap-2 border-l pl-3">
@@ -1184,6 +1358,7 @@ function HomeContent() {
     addPhotoToCategory,
     removePhotoFromCategory,
     updatePhotoInCategory,
+    movePhotoInCategory,
     addAdditionalPartToCategory,
     removeAdditionalPartFromCategory,
     setConclusion,
@@ -1197,7 +1372,9 @@ function HomeContent() {
   const [showAdditionalParts, setShowAdditionalParts] = useState<Record<string, boolean>>({});
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [editingPhoto, setEditingPhoto] = useState<{ categoryId: string; photo: PhotoData } | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<{ categoryId: string; photo: PhotoData; editMode: 'primary' | 'secondary' | 'dual' } | null>(null);
+  const [showMovePhotoDialog, setShowMovePhotoDialog] = useState<{ categoryId: string; photoId: string; currentIndex: number } | null>(null);
+  const [movePhotoToIndex, setMovePhotoToIndex] = useState(0);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -1555,6 +1732,20 @@ function HomeContent() {
       e.target.value = '';
     };
     reader.readAsText(file);
+  };
+
+  // Função para mover foto para posição específica
+  const handleMovePhotoToPosition = () => {
+    if (movePhotoFromIndex === null) return;
+    if (movePhotoFromIndex === movePhotoToIndex) {
+      setShowMovePhotoDialog(false);
+      setMovePhotoFromIndex(null);
+      return;
+    }
+    
+    movePhoto(movePhotoFromIndex, movePhotoToIndex);
+    setShowMovePhotoDialog(false);
+    setMovePhotoFromIndex(null);
   };
 
   const handleGeneratePPT = async () => {
@@ -1933,9 +2124,14 @@ function HomeContent() {
                             <div className="p-3 bg-black/5 space-y-2">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs font-semibold text-gray-600">{t('photos.photo')} {index + 1}</span>
-                                {category.photos.length > 2 && (
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removePhotoFromCategory(category.id, photo.id)} title={t('action.remove')}><Trash2 className="h-4 w-4" /></Button>
-                                )}
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {category.photos.length > 1 && (
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:text-blue-700" onClick={() => { setShowMovePhotoDialog({ categoryId: category.id, photoId: photo.id, currentIndex: index }); setMovePhotoToIndex(index); }} title="Mover para outra posição"><ArrowUpRight className="h-3.5 w-3.5" /></Button>
+                                  )}
+                                  {category.photos.length > 2 && (
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => removePhotoFromCategory(category.id, photo.id)} title={t('action.remove')}><Trash2 className="h-3.5 w-3.5" /></Button>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <Label className="text-xs font-semibold text-orange-600 whitespace-nowrap">{t('photo.pn')}:</Label>
@@ -1970,20 +2166,85 @@ function HomeContent() {
                                 <AdditionalPartsSection parentPn={photo.pn} additionalParts={category.additionalParts} onAddPart={(part) => addAdditionalPartToCategory(category.id, part)} onRemovePart={(id) => removeAdditionalPartFromCategory(category.id, id)} t={t} />
                               )}
                             </div>
-                            <div className="relative h-40 bg-gray-200 flex items-center justify-center cursor-pointer hover:bg-gray-300 transition-colors" onClick={() => { setShowPhotoOptions({ categoryId: category.id, photoId: photo.id }); clipboardPhotoId.current = { categoryId: category.id, photoId: photo.id }; }}>
-                              {photo.imageData ? (
-                                <img src={photo.editedImageData || photo.imageData} alt={`${t('photos.photo')} ${index + 1}`} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="text-center text-gray-500"><Camera className="h-10 w-10 mx-auto mb-2" /><p className="text-sm">{t('photos.clickToAdd')}</p></div>
+                            <div className="relative h-40 bg-gray-200 flex items-center justify-center gap-1 cursor-pointer hover:bg-gray-300 transition-colors">
+                              {/* Primeira foto */}
+                              <div className="flex-1 h-full relative" onClick={() => { setShowPhotoOptions({ categoryId: category.id, photoId: photo.id }); clipboardPhotoId.current = { categoryId: category.id, photoId: photo.id }; }}>
+                                {photo.imageData ? (
+                                  <img src={photo.editedImageData || photo.imageData} alt={`${t('photos.photo')} ${index + 1}`} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="text-center text-gray-500 h-full flex flex-col items-center justify-center">
+                                    <Camera className="h-10 w-10 mx-auto mb-1" />
+                                    <p className="text-xs">Foto 1</p>
+                                  </div>
+                                )}
+                                {photo.imageData && (
+                                  <div className="absolute top-1 right-1 flex gap-1">
+                                    <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600 h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingPhoto({ categoryId: category.id, photo, editMode: 'primary' }); }} title={t('action.edit')}><Edit className="h-3 w-3" /></Button>
+                                    <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700 h-6 w-6" onClick={(e) => { e.stopPropagation(); updatePhotoInCategory(category.id, photo.id, { imageData: null, editedImageData: null }); }} title={t('action.remove')}><Trash2 className="h-3 w-3" /></Button>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Segunda foto (opcional) */}
+                              {photo.secondaryImageData && (
+                                <>
+                                  <div className="w-px h-full bg-gray-300" />
+                                  <div className="flex-1 h-full relative" onClick={(e) => { e.stopPropagation(); }}>
+                                    <img src={photo.secondaryImageData} alt={`Foto 2`} className="w-full h-full object-cover" />
+                                    <div className="absolute top-1 right-1 flex gap-1">
+                                      <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600 h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingPhoto({ categoryId: category.id, photo, editMode: 'secondary' }); }} title={t('action.edit')}><Edit className="h-3 w-3" /></Button>
+                                      <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700 h-6 w-6" onClick={(e) => { e.stopPropagation(); updatePhotoInCategory(category.id, photo.id, { secondaryImageData: null }); }} title="Remover segunda foto"><Trash2 className="h-3 w-3" /></Button>
+                                    </div>
+                                  </div>
+                                </>
                               )}
-                              {photo.imageData && (
-                                <div className="absolute top-2 right-2 flex gap-1">
-                                  <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600 h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingPhoto({ categoryId: category.id, photo }); }} title={t('action.edit')}><Edit className="h-3.5 w-3.5" /></Button>
-                                  <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700 h-7 w-7" onClick={(e) => { e.stopPropagation(); updatePhotoInCategory(category.id, photo.id, { imageData: null, editedImageData: null }); }} title={t('action.remove')}><Trash2 className="h-3.5 w-3.5" /></Button>
+                              
+                              {/* Botão para adicionar segunda foto */}
+                              {photo.imageData && !photo.secondaryImageData && (
+                                <div className="absolute bottom-1 right-1 flex gap-1">
+                                  <Button 
+                                    size="sm" 
+                                    className="rounded bg-orange-500 hover:bg-orange-600 h-6 text-xs px-2"
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      const input = document.createElement('input');
+                                      input.type = 'file';
+                                      input.accept = 'image/*';
+                                      input.onchange = (ev) => {
+                                        const file = (ev.target as HTMLInputElement).files?.[0];
+                                        if (file) {
+                                          const reader = new FileReader();
+                                          reader.onload = (event) => {
+                                            updatePhotoInCategory(category.id, photo.id, { secondaryImageData: event.target?.result as string });
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      };
+                                      input.click();
+                                    }}
+                                  >
+                                    + Foto
+                                  </Button>
                                 </div>
                               )}
+                              
+                              {/* Botão de edição dupla quando tem duas fotos */}
+                              {photo.imageData && photo.secondaryImageData && (
+                                <div className="absolute bottom-1 right-1">
+                                  <Button 
+                                    size="sm" 
+                                    className="rounded bg-purple-500 hover:bg-purple-600 h-6 text-xs px-2"
+                                    onClick={(e) => { e.stopPropagation(); setEditingPhoto({ categoryId: category.id, photo, editMode: 'dual' }); }}
+                                    title="Editar ambas as fotos junto"
+                                  >
+                                    <Images className="h-3 w-3 mr-1" />
+                                    Duplo
+                                  </Button>
+                                </div>
+                              )}
+                              
                               {photo.embeddedPhotos && photo.embeddedPhotos.length > 0 && (
-                                <div className="absolute bottom-2 left-2"><Badge className="bg-orange-500 text-white text-xs"><Circle className="h-3 w-3 mr-1" />{photo.embeddedPhotos.length} {t('photo.circles')}</Badge></div>
+                                <div className="absolute bottom-1 left-1"><Badge className="bg-orange-500 text-white text-xs"><Circle className="h-3 w-3 mr-1" />{photo.embeddedPhotos.length}</Badge></div>
                               )}
                             </div>
                             <div className="p-2">
@@ -2259,9 +2520,60 @@ function HomeContent() {
         </DialogContent>
       </Dialog>
 
+      {/* Move Photo Dialog */}
+      <Dialog open={!!showMovePhotoDialog} onOpenChange={(open) => { if (!open) setShowMovePhotoDialog(null); }}>
+        <DialogContent className="max-w-[90vw] md:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowUpRight className="h-5 w-5 text-blue-500" />
+              Mover Foto
+            </DialogTitle>
+            <DialogDescription>
+              {showMovePhotoDialog && `Mover foto ${showMovePhotoDialog.currentIndex + 1} para outra posição dentro da categoria`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Posição de destino:</Label>
+              <Select value={String(movePhotoToIndex)} onValueChange={(v) => setMovePhotoToIndex(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {showMovePhotoDialog && categories.find(c => c.id === showMovePhotoDialog.categoryId)?.photos.map((_, idx) => (
+                    <SelectItem key={idx} value={String(idx)}>
+                      Posição {idx + 1} {idx === showMovePhotoDialog.currentIndex ? '(atual)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowMovePhotoDialog(null)}>
+                {t('action.cancel')}
+              </Button>
+              <Button 
+                className="flex-1 bg-blue-500 hover:bg-blue-600" 
+                onClick={() => {
+                  if (showMovePhotoDialog) {
+                    movePhotoInCategory(showMovePhotoDialog.categoryId, showMovePhotoDialog.currentIndex, movePhotoToIndex);
+                    setShowMovePhotoDialog(null);
+                  }
+                }}
+                disabled={showMovePhotoDialog && movePhotoToIndex === showMovePhotoDialog.currentIndex}
+              >
+                Mover
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Photo Editor */}
       {editingPhoto && (
-        <PhotoEditor photo={editingPhoto.photo} onSave={(data) => { updatePhotoInCategory(editingPhoto.categoryId, editingPhoto.photo.id, data); setEditingPhoto(null); }} onClose={() => setEditingPhoto(null)} t={t} />
+        <PhotoEditor photo={editingPhoto.photo} editMode={editingPhoto.editMode} onSave={(data) => { updatePhotoInCategory(editingPhoto.categoryId, editingPhoto.photo.id, data); setEditingPhoto(null); }} onClose={() => setEditingPhoto(null)} t={t} />
       )}
 
       {/* Loading Overlay */}
@@ -2288,6 +2600,7 @@ function InspecaoContent() {
     addPhoto,
     removePhoto,
     updatePhoto,
+    movePhoto,
     addAdditionalPart,
     removeAdditionalPart,
     setAdditionalParts,
@@ -2301,7 +2614,7 @@ function InspecaoContent() {
   const [showAdditionalParts, setShowAdditionalParts] = useState<Record<string, boolean>>({});
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [editingPhoto, setEditingPhoto] = useState<PhotoData | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<{ photo: PhotoData; editMode: 'primary' | 'secondary' | 'dual' } | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -2312,6 +2625,9 @@ function InspecaoContent() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [showTranslateDialog, setShowTranslateDialog] = useState(false);
   const [translateProgress, setTranslateProgress] = useState({ current: 0, total: 0, status: '' });
+  const [showMovePhotoDialog, setShowMovePhotoDialog] = useState(false);
+  const [movePhotoFromIndex, setMovePhotoFromIndex] = useState<number | null>(null);
+  const [movePhotoToIndex, setMovePhotoToIndex] = useState(1);
   const shareDialog = useShareDialog();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2647,6 +2963,20 @@ function InspecaoContent() {
   // Função para abrir o diálogo de tradução
   const handleTranslateContent = () => {
     setShowTranslateDialog(true);
+  };
+
+  // Função para mover foto para posição específica
+  const handleMovePhotoToPosition = () => {
+    if (movePhotoFromIndex === null) return;
+    if (movePhotoFromIndex === movePhotoToIndex) {
+      setShowMovePhotoDialog(false);
+      setMovePhotoFromIndex(null);
+      return;
+    }
+    
+    movePhoto(movePhotoFromIndex, movePhotoToIndex);
+    setShowMovePhotoDialog(false);
+    setMovePhotoFromIndex(null);
   };
 
   const handleGeneratePPT = async () => {
@@ -2993,6 +3323,48 @@ function InspecaoContent() {
         </DialogContent>
       </Dialog>
 
+      {/* Move Photo Dialog */}
+      <Dialog open={showMovePhotoDialog} onOpenChange={(open) => { setShowMovePhotoDialog(open); if (!open) setMovePhotoFromIndex(null); }}>
+        <DialogContent className="max-w-[90vw] md:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              <ArrowUpRight className="h-5 w-5 text-orange-500" />
+              Mover Foto
+            </DialogTitle>
+            <DialogDescription>
+              {movePhotoFromIndex !== null ? `Mover foto ${movePhotoFromIndex + 1} para:` : 'Selecione a posição de destino'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Posição de destino:</Label>
+              <Select value={String(movePhotoToIndex)} onValueChange={(v) => setMovePhotoToIndex(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {photos.map((_, idx) => (
+                    <SelectItem key={idx} value={String(idx)}>
+                      Posição {idx + 1} {idx === movePhotoFromIndex ? '(atual)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowMovePhotoDialog(false); setMovePhotoFromIndex(null); }}>
+                Cancelar
+              </Button>
+              <Button className="flex-1 bg-orange-500 hover:bg-orange-600" onClick={handleMovePhotoToPosition}>
+                Mover
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Cover Page */}
       <section className="p-8">
         <Card className="max-w-4xl mx-auto">
@@ -3052,7 +3424,20 @@ function InspecaoContent() {
               <Card key={photo.id} className="overflow-hidden group">
                 <div className="p-3 bg-black/10 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-600">{t('photos.photo')} {index + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-semibold text-gray-600">{t('photos.photo')} {index + 1}</span>
+                      {/* Botão de mover */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => { setMovePhotoFromIndex(index); setMovePhotoToIndex(index); setShowMovePhotoDialog(true); }}
+                        title="Mover para outra posição"
+                      >
+                        <ArrowUpRight className="h-3 w-3 mr-1" />
+                        Mover
+                      </Button>
+                    </div>
                     <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removePhoto(photo.id)} title={t('action.remove')}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -3065,7 +3450,7 @@ function InspecaoContent() {
                     <Label className="text-xs">{t('photo.partName')}:</Label>
                     <Input className="h-7 text-xs flex-1" value={photo.partName} onChange={(e) => updatePhoto(photo.id, { partName: e.target.value })} placeholder={t('photo.partNamePlaceholder')} />
                     <Label className="text-xs">{t('photo.quantity')}:</Label>
-                    <Input className="h-7 text-xs w-16" type="number" value={photo.quantity} onChange={(e) => updatePhoto(photo.id, { quantity: e.target.value })} placeholder={t('photo.quantityPlaceholder')} />
+                    <Input className="h-7 text-xs w-24" type="number" value={photo.quantity} onChange={(e) => updatePhoto(photo.id, { quantity: e.target.value })} placeholder={t('photo.quantityPlaceholder')} />
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="text-xs">{t('photo.criticality')}:</Label>
@@ -3088,20 +3473,95 @@ function InspecaoContent() {
                     <AdditionalPartsSection parentPn={photo.pn} additionalParts={additionalParts} onAddPart={(part) => addAdditionalPart(part)} onRemovePart={(id) => removeAdditionalPart(id)} t={t} />
                   )}
                 </div>
-                <div className="relative h-48 bg-gray-200 flex items-center justify-center cursor-pointer hover:bg-gray-300 transition-colors" onClick={() => { setShowPhotoOptions(photo.id); clipboardPhotoId.current = photo.id; }}>
-                  {photo.imageData ? (
-                    <img src={photo.editedImageData || photo.imageData} alt={`${t('photos.photo')} ${index + 1}`} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-center text-gray-500"><Camera className="h-12 w-12 mx-auto mb-2" /><p className="text-sm">{t('photos.clickToAdd')}</p></div>
+                {/* Área de foto(s) - 1 ou 2 lado a lado */}
+                <div className="relative h-48 bg-gray-200 flex items-center justify-center gap-1 cursor-pointer hover:bg-gray-300 transition-colors">
+                  {/* Primeira foto */}
+                  <div className="flex-1 h-full relative" onClick={() => { setShowPhotoOptions(photo.id); clipboardPhotoId.current = photo.id; }}>
+                    {photo.imageData ? (
+                      <img src={photo.editedImageData || photo.imageData} alt={`${t('photos.photo')} ${index + 1}`} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center text-gray-500 h-full flex flex-col items-center justify-center">
+                        <Camera className="h-10 w-10 mx-auto mb-1" />
+                        <p className="text-xs">Foto 1</p>
+                      </div>
+                    )}
+                    {photo.imageData && (
+                      <div className="absolute top-1 right-1 flex gap-1">
+                        <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600 h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingPhoto({ photo, editMode: 'primary' }); }} title={t('action.edit')}><Edit className="h-3 w-3" /></Button>
+                        <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700 h-6 w-6" onClick={(e) => { e.stopPropagation(); updatePhoto(photo.id, { imageData: null, editedImageData: null }); }} title={t('action.remove')}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Segunda foto (opcional) */}
+                  {photo.secondaryImageData && (
+                    <>
+                      <div className="w-px h-full bg-gray-300" />
+                      <div className="flex-1 h-full relative" onClick={(e) => { e.stopPropagation(); /* abrir opções para segunda foto */ }}>
+                        <img src={photo.secondaryImageData} alt={`Foto 2`} className="w-full h-full object-cover" />
+                        <div className="absolute top-1 right-1 flex gap-1">
+                          <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600 h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingPhoto({ photo, editMode: 'secondary' }); }} title={t('action.edit')}><Edit className="h-3 w-3" /></Button>
+                          <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700 h-6 w-6" onClick={(e) => { e.stopPropagation(); updatePhoto(photo.id, { secondaryImageData: null }); }} title="Remover segunda foto"><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                      </div>
+                    </>
                   )}
-                  {photo.imageData && (
-                    <div className="absolute top-2 right-2 flex gap-1">
-                      <Button size="icon" className="rounded-full bg-orange-500 hover:bg-orange-600 h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingPhoto(photo); }} title={t('action.edit')}><Edit className="h-3.5 w-3.5" /></Button>
-                      <Button size="icon" className="rounded-full bg-red-600 hover:bg-red-700 h-7 w-7" onClick={(e) => { e.stopPropagation(); updatePhoto(photo.id, { imageData: null, editedImageData: null }); }} title={t('action.remove')}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  
+                  {/* Botão para adicionar segunda foto */}
+                  {photo.imageData && !photo.secondaryImageData && (
+                    <div className="absolute bottom-1 right-1 flex gap-1">
+                      <Button 
+                        size="sm" 
+                        className="rounded bg-orange-500 hover:bg-orange-600 h-6 text-xs px-2"
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (ev) => {
+                            const file = (ev.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                updatePhoto(photo.id, { secondaryImageData: event.target?.result as string });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          };
+                          input.click();
+                        }}
+                      >
+                        + Foto
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="rounded bg-purple-500 hover:bg-purple-600 h-6 text-xs px-2"
+                        onClick={(e) => { e.stopPropagation(); setEditingPhoto({ photo, editMode: 'dual' }); }}
+                        title="Editar ambas as fotos junto"
+                      >
+                        <Images className="h-3 w-3 mr-1" />
+                        Duplo
+                      </Button>
                     </div>
                   )}
+                  
+                  {/* Botão de edição dupla quando tem duas fotos */}
+                  {photo.imageData && photo.secondaryImageData && (
+                    <div className="absolute bottom-1 right-1">
+                      <Button 
+                        size="sm" 
+                        className="rounded bg-purple-500 hover:bg-purple-600 h-6 text-xs px-2"
+                        onClick={(e) => { e.stopPropagation(); setEditingPhoto({ photo, editMode: 'dual' }); }}
+                        title="Editar ambas as fotos junto"
+                      >
+                        <Images className="h-3 w-3 mr-1" />
+                        Duplo
+                      </Button>
+                    </div>
+                  )}
+                  
                   {photo.embeddedPhotos && photo.embeddedPhotos.length > 0 && (
-                    <div className="absolute bottom-2 left-2"><Badge className="bg-orange-500 text-white text-xs"><Circle className="h-3 w-3 mr-1" />{photo.embeddedPhotos.length} {t('photo.circles')}</Badge></div>
+                    <div className="absolute bottom-1 left-1"><Badge className="bg-orange-500 text-white text-xs"><Circle className="h-3 w-3 mr-1" />{photo.embeddedPhotos.length}</Badge></div>
                   )}
                 </div>
                 <div className="p-2">
@@ -3299,7 +3759,7 @@ function InspecaoContent() {
         </DialogContent>
       </Dialog>
 
-      {editingPhoto && <PhotoEditor photo={editingPhoto} onSave={(data) => { updatePhoto(editingPhoto.id, data); setEditingPhoto(null); }} onClose={() => setEditingPhoto(null)} t={t} />}
+      {editingPhoto && <PhotoEditor photo={editingPhoto.photo} editMode={editingPhoto.editMode} onSave={(data) => { updatePhoto(editingPhoto.photo.id, data); setEditingPhoto(null); }} onClose={() => setEditingPhoto(null)} t={t} />}
 
       {isLoading && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><Card className="w-64"><CardContent className="p-6 text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div><p className="text-sm text-gray-600">{t('loading.generatingPPT')}</p></CardContent></Card></div>}
     </>

@@ -29,6 +29,7 @@ function mergePhotos(localPhotos: PhotoData[], serverPhotos: PhotoData[]): Photo
         quantity: server.quantity || local.quantity || '',
         criticality: server.criticality || local.criticality || '',
         imageData: server.imageData || local.imageData,
+        secondaryImageData: server.secondaryImageData || local.secondaryImageData,
         editedImageData: server.editedImageData || local.editedImageData,
         embeddedPhotos: server.embeddedPhotos?.length ? server.embeddedPhotos : local.embeddedPhotos || [],
         hasAdditionalParts: server.hasAdditionalParts || local.hasAdditionalParts,
@@ -72,8 +73,10 @@ interface ReportState {
   addPhoto: () => void;
   removePhoto: (id: string) => void;
   updatePhoto: (id: string, data: Partial<PhotoData>) => void;
+  movePhoto: (fromIndex: number, toIndex: number) => void;
   setPhotoCount: (count: number) => void;
   addAdditionalPart: (part: AdditionalPart) => void;
+  addAdditionalPartsFromExcel: (parts: Omit<AdditionalPart, 'id'>[], parentPn: string) => void;
   removeAdditionalPart: (id: string) => void;
   updateAdditionalPart: (id: string, data: Partial<AdditionalPart>) => void;
   setAdditionalParts: (parts: AdditionalPart[]) => void;
@@ -117,6 +120,7 @@ const createInitialPhotos = (count: number): PhotoData[] => {
     quantity: '',
     criticality: '',
     imageData: null,
+    secondaryImageData: null,
     editedImageData: null,
     embeddedPhotos: [],
     hasAdditionalParts: false,
@@ -158,6 +162,7 @@ export const useReportStore = create<ReportState>()(
               quantity: '',
               criticality: '',
               imageData: null,
+              secondaryImageData: null,
               editedImageData: null,
               embeddedPhotos: [],
               hasAdditionalParts: false,
@@ -182,6 +187,14 @@ export const useReportStore = create<ReportState>()(
           lastLocalEdit: Date.now(),
         })),
         
+      movePhoto: (fromIndex, toIndex) =>
+        set((state) => {
+          const newPhotos = [...state.photos];
+          const [movedPhoto] = newPhotos.splice(fromIndex, 1);
+          newPhotos.splice(toIndex, 0, movedPhoto);
+          return { photos: newPhotos, lastLocalEdit: Date.now() };
+        }),
+        
       setPhotoCount: (count) =>
         set((state) => {
           const currentPhotos = state.photos;
@@ -200,6 +213,19 @@ export const useReportStore = create<ReportState>()(
           additionalParts: [...state.additionalParts, part],
           lastLocalEdit: Date.now(),
         })),
+        
+      addAdditionalPartsFromExcel: (parts, parentPn) =>
+        set((state) => {
+          const newParts: AdditionalPart[] = parts.map((part) => ({
+            ...part,
+            id: `part-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            parentPn: parentPn,
+          }));
+          return {
+            additionalParts: [...state.additionalParts, ...newParts],
+            lastLocalEdit: Date.now(),
+          };
+        }),
         
       removeAdditionalPart: (id) =>
         set((state) => ({

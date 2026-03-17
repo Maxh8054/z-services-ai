@@ -689,6 +689,13 @@ function addPhotoToSlide(
   language: Language
 ) {
   const isTranslated = language !== 'pt';
+  
+  // Check if we have a secondary photo (two photos side by side)
+  const hasSecondaryPhoto = photo.secondaryImageData && photo.imageData;
+  
+  // Calculate photo widths
+  const photoWidth = hasSecondaryPhoto ? (w - 0.1) / 2 : w;
+  
   // Photo info overlay (if PN exists)
   if (photo.pn) {
     slide.addShape(slide._slideLayout?._presLayout?.pptx?.ShapeType?.rect || 'rect', {
@@ -714,15 +721,32 @@ function addPhotoToSlide(
     });
   }
   
-  // Photo
-  slide.addImage({
-    data: photo.editedImageData || photo.imageData || '',
-    x: x,
-    y: y,
-    w: w,
-    h: h,
-    sizing: { type: 'cover' },
-  });
+  // Primary Photo
+  if (photo.imageData) {
+    slide.addImage({
+      data: photo.editedImageData || photo.imageData || '',
+      x: x,
+      y: y,
+      w: photoWidth,
+      h: h,
+      sizing: { type: 'cover' },
+    });
+  }
+  
+  // Secondary Photo (lado a lado)
+  if (photo.secondaryImageData) {
+    const secondX = hasSecondaryPhoto ? x + photoWidth + 0.1 : x;
+    const secondW = hasSecondaryPhoto ? photoWidth : w;
+    
+    slide.addImage({
+      data: photo.secondaryImageData,
+      x: secondX,
+      y: y,
+      w: secondW,
+      h: h,
+      sizing: { type: 'cover' },
+    });
+  }
   
   // Description
   if (photo.description) {

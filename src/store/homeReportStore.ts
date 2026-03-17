@@ -113,6 +113,7 @@ interface HomeReportState {
   addPhotoToCategory: (categoryId: string) => void;
   removePhotoFromCategory: (categoryId: string, photoId: string) => void;
   updatePhotoInCategory: (categoryId: string, photoId: string, data: Partial<PhotoData>) => void;
+  movePhotoInCategory: (categoryId: string, fromIndex: number, toIndex: number) => void;
   
   // Additional parts for categories
   addAdditionalPartToCategory: (categoryId: string, part: AdditionalPart) => void;
@@ -214,6 +215,21 @@ export const useHomeReportStore = create<HomeReportState>()(
               photos: cat.photos.map(p =>
                 p.id === photoId ? { ...p, ...data } : p
               ),
+            };
+          }),
+          lastLocalEdit: Date.now(),
+        })),
+      
+      movePhotoInCategory: (categoryId, fromIndex, toIndex) =>
+        set((state) => ({
+          categories: state.categories.map(cat => {
+            if (cat.id !== categoryId) return cat;
+            const newPhotos = [...cat.photos];
+            const [movedPhoto] = newPhotos.splice(fromIndex, 1);
+            newPhotos.splice(toIndex, 0, movedPhoto);
+            return {
+              ...cat,
+              photos: newPhotos,
             };
           }),
           lastLocalEdit: Date.now(),

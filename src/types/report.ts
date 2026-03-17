@@ -19,6 +19,7 @@ export interface PhotoData {
   quantity: string;
   criticality: Criticality; // Criticidade: Alta, Média, Baixa
   imageData: string | null;
+  secondaryImageData: string | null; // Segunda foto opcional (lado a lado)
   editedImageData: string | null;
   embeddedPhotos: EmbeddedPhoto[];
   hasAdditionalParts: boolean; // Novo campo
